@@ -11,9 +11,12 @@ cpp_args = []
 executable(
     'cosmos-os',
     [
+        'src/limine.cpp',
         'src/main.cpp'
     ],
-    include_directories: [],
+    include_directories: include_directories(
+        'vendor/limine'
+    ),
     cpp_args: [
         '-std=c++23',
         '-ffreestanding',
