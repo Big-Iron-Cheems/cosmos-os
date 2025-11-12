@@ -1,0 +1,35 @@
+name: Build ISO
+
+on:
+  push:
+    branches: [ "master" ]
+  pull_request:
+    branches: [ "master" ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+      with:
+        submodules: true
+
+    - name: Install packages
+      uses: awalsh128/cache-apt-pkgs-action@v1.6.0
+      with:
+        packages: meson xorriso
+        version: 1.0
+
+    - name: Setup Meson
+      run: meson setup build
+
+    - name: Build ISO
+      run: make iso
+
+    - name: Upload ISO
+      uses: actions/upload-artifact@v4
+      with:
+        name: Cosmos-OS
+        path: cosmos-os.iso

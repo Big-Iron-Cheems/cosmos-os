@@ -1,0 +1,34 @@
+project(
+    'cosmos-os',
+    [ 'cpp' ],
+    default_options: [
+        'cpp_std=c++17'
+    ]
+)
+
+cpp_args = []
+
+executable(
+    'cosmos-os',
+    [
+        'src/main.cpp'
+    ],
+    include_directories: [],
+    cpp_args: [
+        '-std=c++23',
+        '-ffreestanding',
+        '-m64', '-march=x86-64',
+        '-mno-red-zone', '-fno-omit-frame-pointer',
+        '-O0', '-g',
+        '-mno-mmx', '-mno-3dnow', '-mno-avx', '-mno-avx2', '-mno-avx512f',
+        '-fno-stack-protector', '-fno-stack-check',
+        '-fno-exceptions', '-fno-rtti',
+        '-pedantic', '-Wall', '-Wextra', '-Wundef', '-Werror', '-Wno-unused-variable', '-Wno-unused-parameter', '-Wno-unused-function', '-Wno-unused-but-set-variable', '-Wno-missing-field-initializers'
+    ],
+    pie: false,
+    link_args: [
+        '-ffreestanding', '-nostdlib',
+        '-pie',
+        '-T' + meson.project_source_root() + '/linker.ld'
+    ]
+)
