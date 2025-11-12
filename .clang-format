@@ -1,0 +1,8 @@
+LineEnding: LF
+InsertNewlineAtEOF: true
+IndentWidth: 4
+ColumnLimit: 140
+
+MaxEmptyLinesToKeep: 2
+NamespaceIndentation: All
+PointerAlignment: Left
