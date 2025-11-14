@@ -1,5 +1,6 @@
 #include "interrupts/isr.hpp"
 #include "limine.hpp"
+#include "memory/physical.hpp"
 #include "serial.hpp"
 #include "utils.hpp"
 
@@ -13,8 +14,12 @@ extern "C" [[noreturn]] void main() {
     }
 
     isr::init();
+    memory::physical::init();
 
     serial::printf("[cosmos] %s\n", "Initialized");
+
+    serial::printf("[cosmos] Total memory: %d mB\n", static_cast<uint64_t>(memory::physical::get_total_pages()) * 4096 / 1024 / 1024);
+    serial::printf("[cosmos] Free memory: %d mB\n", static_cast<uint64_t>(memory::physical::get_free_pages()) * 4096 / 1024 / 1024);
 
     const auto pixels = static_cast<uint32_t*>(limine::get_framebuffer().pixels);
     pixels[0] = 0xFFFFFFFF;

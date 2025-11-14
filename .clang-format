@@ -10,3 +10,4 @@ SortIncludes: true
 BreakAfterAttributes: Leave
 Cpp11BracedListStyle: false
 AllowShortFunctionsOnASingleLine: Empty
+BreakTemplateDeclarations: Yes
