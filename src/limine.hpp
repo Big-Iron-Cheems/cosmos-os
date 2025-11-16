@@ -3,9 +3,32 @@
 #include <cstdint>
 
 namespace cosmos::limine {
-    struct Range {
+    enum class MemoryType {
+        Usable,
+        Reserved,
+        AcpiReclaimable,
+        AcpiNvs,
+        BadMemory,
+        BootloaderReclaimable,
+        ExecutableAndModules,
+        Framebuffer,
+        AcpiTables,
+    };
+
+    inline bool memory_type_ram(const MemoryType type) {
+        switch (type) {
+        case MemoryType::Reserved:
+        case MemoryType::Framebuffer:
+            return false;
+        default:
+            return true;
+        }
+    }
+
+    struct MemoryRange {
+        MemoryType type;
         uint64_t address;
-        uint64_t length;
+        uint64_t size;
     };
 
     struct Framebuffer {
@@ -17,10 +40,15 @@ namespace cosmos::limine {
 
     bool init();
 
-    uint32_t get_usable_memory_range_count();
-    const Range& get_usable_memory_range(uint32_t index);
+    uint32_t get_memory_range_count();
+    MemoryRange get_memory_range(uint32_t index);
 
-    void* get_hhdm();
+    uint64_t get_memory_size();
+
+    uint64_t get_kernel_phys();
+    uint64_t get_kernel_virt();
+
+    uint64_t get_hhdm();
 
     const Framebuffer& get_framebuffer();
 } // namespace cosmos::limine

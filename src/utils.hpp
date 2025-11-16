@@ -11,7 +11,7 @@ namespace cosmos::utils {
 
     template <typename T>
     T ceil_div(T a, T b) {
-        return (a + b) / b;
+        return (a + b - 1) / b;
     }
 
     template <typename T>

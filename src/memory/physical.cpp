@@ -38,10 +38,10 @@ namespace cosmos::memory::physical {
         // Calculate total memory size
         uint64_t total_memory_size = 0u;
 
-        for (auto i = 0u; i < limine::get_usable_memory_range_count(); i++) {
-            const auto& [address, length] = limine::get_usable_memory_range(i);
+        for (auto i = 0u; i < limine::get_memory_range_count(); i++) {
+            const auto [type, address, length] = limine::get_memory_range(i);
 
-            if (address + length > total_memory_size) {
+            if (limine::memory_type_ram(type) && address + length > total_memory_size) {
                 total_memory_size = address + length;
             }
         }
@@ -53,13 +53,13 @@ namespace cosmos::memory::physical {
         const uint32_t entries_page_count = utils::ceil_div(entry_count * 8u, 4096u);
         uint32_t entries_page_index = 0xFFFFFFFF;
 
-        for (auto i = 0u; i < limine::get_usable_memory_range_count(); i++) {
-            const auto& [address, length] = limine::get_usable_memory_range(i);
+        for (auto i = 0u; i < limine::get_memory_range_count(); i++) {
+            const auto [type, address, length] = limine::get_memory_range(i);
 
-            if (length / 4096ul >= entries_page_count) {
+            if (type == limine::MemoryType::Usable && length / 4096ul >= entries_page_count) {
                 const uint64_t address_aligned = utils::align(address, 4096ul);
 
-                entries = reinterpret_cast<uint64_t*>(static_cast<uint8_t*>(limine::get_hhdm()) + address_aligned);
+                entries = reinterpret_cast<uint64_t*>(limine::get_hhdm() + address_aligned);
                 entries_page_index = address_aligned / 4096ul;
 
                 break;
@@ -76,10 +76,12 @@ namespace cosmos::memory::physical {
         used_pages = total_pages;
 
         // Mark usable ranges as unused
-        for (auto i = 0u; i < limine::get_usable_memory_range_count(); i++) {
-            const auto& [address, length] = limine::get_usable_memory_range(i);
+        for (auto i = 0u; i < limine::get_memory_range_count(); i++) {
+            const auto [type, address, length] = limine::get_memory_range(i);
 
-            mark_pages(utils::ceil_div(address, 4096ul), length / 4096ul, false);
+            if (type == limine::MemoryType::Usable) {
+                mark_pages(utils::ceil_div(address, 4096ul), length / 4096ul, false);
+            }
         }
 
         // Mark first page (starting at 0) as used just in case

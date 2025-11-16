@@ -1,0 +1,278 @@
+#include "virtual.hpp"
+
+#include "limine.hpp"
+#include "physical.hpp"
+#include "serial.hpp"
+#include "utils.hpp"
+
+namespace cosmos::memory::virt {
+    // Virtual address
+
+    constexpr uint64_t VIRT_ADDR_OFFSET_OFFSET = 0;
+    constexpr uint64_t VIRT_ADDR_OFFSET_MASK = 0b111111111111;
+
+    constexpr uint64_t VIRT_ADDR_PT_OFFSET = VIRT_ADDR_OFFSET_OFFSET + 12;
+    constexpr uint64_t VIRT_ADDR_PT_MASK = 0b111111111;
+
+    constexpr uint64_t VIRT_ADDR_PD_OFFSET = VIRT_ADDR_PT_OFFSET + 9;
+    constexpr uint64_t VIRT_ADDR_PD_MASK = 0b111111111;
+
+    constexpr uint64_t VIRT_ADDR_PDP_OFFSET = VIRT_ADDR_PD_OFFSET + 9;
+    constexpr uint64_t VIRT_ADDR_PDP_MASK = 0b111111111;
+
+    constexpr uint64_t VIRT_ADDR_PML4_OFFSET = VIRT_ADDR_PDP_OFFSET + 9;
+    constexpr uint64_t VIRT_ADDR_PML4_MASK = 0b111111111;
+
+    constexpr uint64_t VIRT_ADDR_LAST_BIT_OFFSET = VIRT_ADDR_PML4_OFFSET + 9;
+    constexpr uint64_t VIRT_ADDR_UNUSED_MASK = 0b1111111111111111;
+
+    Address unpack(const uint64_t virt) {
+        return {
+            .pml4 = static_cast<uint16_t>((virt >> VIRT_ADDR_PML4_OFFSET) & VIRT_ADDR_PML4_MASK),
+            .pdp = static_cast<uint16_t>((virt >> VIRT_ADDR_PDP_OFFSET) & VIRT_ADDR_PDP_MASK),
+            .pd = static_cast<uint16_t>((virt >> VIRT_ADDR_PD_OFFSET) & VIRT_ADDR_PD_MASK),
+            .pt = static_cast<uint16_t>((virt >> VIRT_ADDR_PT_OFFSET) & VIRT_ADDR_PT_MASK),
+            .offset = static_cast<uint16_t>((virt >> VIRT_ADDR_OFFSET_OFFSET) & VIRT_ADDR_OFFSET_MASK),
+        };
+    }
+
+    uint64_t pack(const Address addr) {
+        uint64_t virt = (addr.pml4 & VIRT_ADDR_PML4_MASK) << VIRT_ADDR_PML4_OFFSET;
+        virt |= (addr.pdp & VIRT_ADDR_PDP_MASK) << VIRT_ADDR_PDP_OFFSET;
+        virt |= (addr.pd & VIRT_ADDR_PD_MASK) << VIRT_ADDR_PD_OFFSET;
+        virt |= (addr.pt & VIRT_ADDR_PT_MASK) << VIRT_ADDR_PT_OFFSET;
+        virt |= (addr.offset & VIRT_ADDR_OFFSET_MASK) << VIRT_ADDR_OFFSET_OFFSET;
+
+        if (((virt >> VIRT_ADDR_LAST_BIT_OFFSET) & 1) == 1) {
+            virt |= VIRT_ADDR_UNUSED_MASK << VIRT_ADDR_LAST_BIT_OFFSET;
+        }
+
+        return virt;
+    }
+
+    // Table entry
+
+    constexpr uint64_t FLAG_PRESENT = 1 << 0;
+    constexpr uint64_t FLAG_WRITABLE = 1 << 1;
+    constexpr uint64_t FLAG_USER = 1 << 2;
+    constexpr uint64_t FLAG_WRITE_THROUGH = 1 << 3;
+    constexpr uint64_t FLAG_CACHE_DISABLE = 1 << 4;
+    constexpr uint64_t FLAG_ACCESSED = 1 << 5;
+    constexpr uint64_t FLAG_DIRECT = 1 << 7;
+
+    constexpr uint64_t ADDRESS_MASK /*************/ = 0b00000000'00000111'11111111'11111111'11111111'11111111'11110000'00000000;
+    constexpr uint64_t DIRECT_PD_ADDRESS_MASK /***/ = 0b00000000'00000111'11111111'11111111'11111111'11100000'00000000'00000000;
+    constexpr uint64_t DIRECT_PDP_ADDRESS_MASK /**/ = 0b00000000'00000111'11111111'11111111'11000000'00000000'00000000'00000000;
+
+    bool entry_is_present(const uint64_t entry) {
+        return (entry & FLAG_PRESENT) == FLAG_PRESENT;
+    }
+
+    bool entry_is_writable(const uint64_t entry) {
+        return (entry & FLAG_WRITABLE) == FLAG_WRITABLE;
+    }
+
+    bool entry_is_user(const uint64_t entry) {
+        return (entry & FLAG_USER) == FLAG_USER;
+    }
+
+    bool entry_is_write_through(const uint64_t entry) {
+        return (entry & FLAG_WRITE_THROUGH) == FLAG_WRITE_THROUGH;
+    }
+
+    bool entry_is_cache_disabled(const uint64_t entry) {
+        return (entry & FLAG_CACHE_DISABLE) == FLAG_CACHE_DISABLE;
+    }
+
+    bool entry_is_accessed(const uint64_t entry) {
+        return (entry & FLAG_ACCESSED) == FLAG_ACCESSED;
+    }
+
+    bool entry_is_direct(const uint64_t entry) {
+        return (entry & FLAG_DIRECT) == FLAG_DIRECT;
+    }
+
+    // Space
+
+    template <typename T>
+    T* get_ptr_from_phys(const uint64_t phys) {
+        return reinterpret_cast<T*>(limine::get_hhdm() + phys);
+    }
+
+    bool map_kernel(const Space space) {
+        for (auto i = 0u; i < limine::get_memory_range_count(); i++) {
+            const auto [type, address, length] = limine::get_memory_range(i);
+
+            if (type == limine::MemoryType::ExecutableAndModules) {
+                const auto virt = limine::get_kernel_virt() / 4096ul;
+                const auto phys = address / 4096ul;
+                const auto count = utils::ceil_div(length, 4096ul);
+
+                return map_pages(space, virt, phys, count, false);
+            }
+        }
+
+        serial::print("[mem - virt] Failed to find kernel memory range\n");
+        return true;
+    }
+
+    bool map_framebuffer(const Space space) {
+        for (auto i = 0u; i < limine::get_memory_range_count(); i++) {
+            const auto [type, address, length] = limine::get_memory_range(i);
+
+            if (type == limine::MemoryType::Framebuffer) {
+                const auto& fb = limine::get_framebuffer();
+
+                const auto virt = reinterpret_cast<uint64_t>(fb.pixels) / 4096ul;
+                const auto phys = address / 4096ul;
+                const auto count = utils::ceil_div(fb.width * fb.height * 4ul, 4096ul);
+
+                return map_pages(space, virt, phys, count, false);
+            }
+        }
+
+        serial::print("[mem - virt] Failed to find framebuffer memory range\n");
+        return true;
+    }
+
+    bool map_hhdm(const Space space) {
+        const auto virt = limine::get_hhdm() / 4096ul;
+        constexpr auto phys = 0ul;
+        const auto count = physical::get_total_pages();
+
+        return map_pages(space, virt, phys, count, true);
+    }
+
+    Space create() {
+        const auto space = physical::alloc_pages(1);
+        if (space == 0) return 0;
+
+        const auto pml4 = get_ptr_from_phys<uint64_t>(space);
+        utils::memset(pml4, 0, 4096);
+
+#define MAP(func)                                                                                                                          \
+    if (!func(space)) {                                                                                                                    \
+        destroy(space);                                                                                                                    \
+        return 0;                                                                                                                          \
+    }
+
+        MAP(map_kernel)
+        MAP(map_framebuffer)
+        MAP(map_hhdm)
+
+#undef MAP
+
+        return space;
+    }
+
+    void destroy(Space space) {
+        // TODO: Not implemented
+    }
+
+    uint64_t* get_child_table(uint64_t& entry) {
+        if (!entry_is_present(entry)) {
+            const auto child_table_phys = physical::alloc_pages(1);
+            if (child_table_phys == 0) return nullptr;
+
+            const auto child_table = get_ptr_from_phys<uint64_t*>(child_table_phys);
+            utils::memset(child_table, 0, 4096);
+
+            entry = (child_table_phys & ADDRESS_MASK) | FLAG_PRESENT | FLAG_WRITABLE;
+        }
+
+        return get_ptr_from_phys<uint64_t>(entry & ADDRESS_MASK);
+    }
+
+    bool map_pages(const Space space, uint64_t virt, uint64_t phys, uint64_t count, const bool cache_disabled) {
+        const auto pml4_table = get_ptr_from_phys<uint64_t>(space);
+
+        auto flags = FLAG_PRESENT | FLAG_WRITABLE;
+        if (cache_disabled) flags |= FLAG_CACHE_DISABLE | FLAG_WRITE_THROUGH;
+
+        Space current_space;
+        __asm__ volatile("mov %%cr3, %%rax" : "=a"(current_space));
+        auto invalidate = current_space == space;
+
+        while (count > 0) {
+            const auto addr = unpack(virt * 4096);
+
+            const auto pdp_table = get_child_table(pml4_table[addr.pml4]);
+            if (pdp_table == nullptr) return false;
+
+            // 1 gB
+            if (virt % (512 * 512) == 0 && phys % (512 * 512) == 0 && count >= (512 * 512)) {
+                pdp_table[addr.pdp] = ((phys * 4096) & DIRECT_PDP_ADDRESS_MASK) | FLAG_DIRECT | flags;
+                if (invalidate) asm volatile("invlpg %0" ::"m"(virt));
+
+                virt += 512 * 512;
+                phys += 512 * 512;
+                count -= 512 * 512;
+
+                continue;
+            }
+
+            const auto pd_table = get_child_table(pdp_table[addr.pdp]);
+            if (pd_table == nullptr) return false;
+
+            // 2 mB
+            if (virt % 512 == 0 && phys % 512 == 0 && count >= 512) {
+                pd_table[addr.pd] = ((phys * 4096) & DIRECT_PD_ADDRESS_MASK) | FLAG_DIRECT | flags;
+                if (invalidate) asm volatile("invlpg %0" ::"m"(virt));
+
+                virt += 512;
+                phys += 512;
+                count -= 512;
+
+                continue;
+            }
+
+            // 4 kB
+            const auto pt_table = get_child_table(pd_table[addr.pd]);
+            if (pt_table == nullptr) return false;
+
+            pt_table[addr.pt] = ((phys * 4096) & ADDRESS_MASK) | flags;
+            if (invalidate) asm volatile("invlpg %0" ::"m"(virt));
+
+            virt++;
+            phys++;
+            count--;
+        }
+
+        return true;
+    }
+
+    void switch_to(Space space) {
+        __asm__ volatile("mov %%rax, %%cr3" ::"a"(space));
+    }
+
+    uint64_t get_phys(const uint64_t virt) {
+        const auto [pml4, pdp, pd, pt, offset] = unpack(virt);
+
+        uint64_t space;
+        __asm__ volatile("mov %%cr3, %%rax" : "=a"(space));
+
+        const auto pml4_table = get_ptr_from_phys<uint64_t>(space);
+
+        // PML4 Entry - PDP Table
+        if (!entry_is_present(pml4_table[pml4])) return 0;
+        const auto pdp_table = get_ptr_from_phys<uint64_t>(pml4_table[pml4] & ADDRESS_MASK);
+
+        // PDP Entry - PD Table
+        if (!entry_is_present(pdp_table[pdp])) return 0;
+        if (entry_is_direct(pdp_table[pdp])) // Direct entry - 1 gB page
+            return (pdp_table[pdp] & DIRECT_PDP_ADDRESS_MASK) + ((pd << VIRT_ADDR_PD_OFFSET) | (pt << VIRT_ADDR_PT_OFFSET) | offset);
+        const auto pd_table = get_ptr_from_phys<uint64_t>(pdp_table[pdp] & ADDRESS_MASK);
+
+        // PD Entry - PT Table
+        if (!entry_is_present(pd_table[pd])) return 0;
+        if (entry_is_direct(pd_table[pd])) // Direct entry - 2 mB page
+            return (pd_table[pd] & DIRECT_PD_ADDRESS_MASK) + ((pt << VIRT_ADDR_PT_OFFSET) | offset);
+        const auto pt_table = get_ptr_from_phys<uint64_t>(pd_table[pd] & ADDRESS_MASK);
+
+        // PT Table - Page
+        if (!entry_is_present(pt_table[pt])) return 0;
+        const auto page_phys = pt_table[pt] & ADDRESS_MASK;
+
+        return page_phys + offset;
+    }
+} // namespace cosmos::memory::virt
