@@ -190,7 +190,7 @@ namespace cosmos::memory::virt {
         if (cache_disabled) flags |= FLAG_CACHE_DISABLE | FLAG_WRITE_THROUGH;
 
         Space current_space;
-        __asm__ volatile("mov %%cr3, %%rax" : "=a"(current_space));
+        asm volatile("mov %%cr3, %0" : "=r"(current_space));
         auto invalidate = current_space == space;
 
         while (count > 0) {
@@ -202,7 +202,7 @@ namespace cosmos::memory::virt {
             // 1 gB
             if (virt % (512 * 512) == 0 && phys % (512 * 512) == 0 && count >= (512 * 512)) {
                 pdp_table[addr.pdp] = ((phys * 4096) & DIRECT_PDP_ADDRESS_MASK) | FLAG_DIRECT | flags;
-                if (invalidate) asm volatile("invlpg %0" ::"m"(virt));
+                if (invalidate) asm volatile("invlpg (%0)" ::"ri"(virt * 4096ul) : "memory");
 
                 virt += 512 * 512;
                 phys += 512 * 512;
@@ -217,7 +217,7 @@ namespace cosmos::memory::virt {
             // 2 mB
             if (virt % 512 == 0 && phys % 512 == 0 && count >= 512) {
                 pd_table[addr.pd] = ((phys * 4096) & DIRECT_PD_ADDRESS_MASK) | FLAG_DIRECT | flags;
-                if (invalidate) asm volatile("invlpg %0" ::"m"(virt));
+                if (invalidate) asm volatile("invlpg (%0)" ::"ri"(virt * 4096ul) : "memory");
 
                 virt += 512;
                 phys += 512;
@@ -231,7 +231,7 @@ namespace cosmos::memory::virt {
             if (pt_table == nullptr) return false;
 
             pt_table[addr.pt] = ((phys * 4096) & ADDRESS_MASK) | flags;
-            if (invalidate) asm volatile("invlpg %0" ::"m"(virt));
+            if (invalidate) asm volatile("invlpg (%0)" ::"ri"(virt * 4096ul) : "memory");
 
             virt++;
             phys++;
@@ -242,14 +242,14 @@ namespace cosmos::memory::virt {
     }
 
     void switch_to(Space space) {
-        __asm__ volatile("mov %%rax, %%cr3" ::"a"(space));
+        asm volatile("mov %0, %%cr3" ::"ri"(space));
     }
 
     uint64_t get_phys(const uint64_t virt) {
         const auto [pml4, pdp, pd, pt, offset] = unpack(virt);
 
         uint64_t space;
-        __asm__ volatile("mov %%cr3, %%rax" : "=a"(space));
+        asm volatile("mov %%cr3, %0" : "=r"(space));
 
         const auto pml4_table = get_ptr_from_phys<uint64_t>(space);
 
