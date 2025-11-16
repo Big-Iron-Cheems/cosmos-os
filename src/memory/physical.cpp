@@ -4,7 +4,7 @@
 #include "serial.hpp"
 #include "utils.hpp"
 
-namespace cosmos::memory::physical {
+namespace cosmos::memory::phys {
     static uint64_t* entries;
     static uint32_t entry_count;
 

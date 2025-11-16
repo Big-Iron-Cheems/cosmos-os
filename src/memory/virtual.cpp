@@ -138,13 +138,13 @@ namespace cosmos::memory::virt {
     bool map_hhdm(const Space space) {
         const auto virt = limine::get_hhdm() / 4096ul;
         constexpr auto phys = 0ul;
-        const auto count = physical::get_total_pages();
+        const auto count = phys::get_total_pages();
 
         return map_pages(space, virt, phys, count, true);
     }
 
     Space create() {
-        const auto space = physical::alloc_pages(1);
+        const auto space = phys::alloc_pages(1);
         if (space == 0) return 0;
 
         const auto pml4 = get_ptr_from_phys<uint64_t>(space);
@@ -171,7 +171,7 @@ namespace cosmos::memory::virt {
 
     uint64_t* get_child_table(uint64_t& entry) {
         if (!entry_is_present(entry)) {
-            const auto child_table_phys = physical::alloc_pages(1);
+            const auto child_table_phys = phys::alloc_pages(1);
             if (child_table_phys == 0) return nullptr;
 
             const auto child_table = get_ptr_from_phys<uint64_t*>(child_table_phys);

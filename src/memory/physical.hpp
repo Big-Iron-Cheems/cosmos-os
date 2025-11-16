@@ -2,7 +2,7 @@
 
 #include <cstdint>
 
-namespace cosmos::memory::physical {
+namespace cosmos::memory::phys {
     void init();
 
     /**
