@@ -165,6 +165,13 @@ namespace cosmos::memory::virt {
         return space;
     }
 
+    Space get_current() {
+        Space space;
+        asm volatile("mov %%cr3, %0" : "=r"(space));
+
+        return space;
+    }
+
     void destroy(Space space) {
         // TODO: Not implemented
     }
@@ -189,9 +196,7 @@ namespace cosmos::memory::virt {
         auto flags = FLAG_PRESENT | FLAG_WRITABLE;
         if (cache_disabled) flags |= FLAG_CACHE_DISABLE | FLAG_WRITE_THROUGH;
 
-        Space current_space;
-        asm volatile("mov %%cr3, %0" : "=r"(current_space));
-        auto invalidate = current_space == space;
+        const auto invalidate = get_current() == space;
 
         while (count > 0) {
             const auto addr = unpack(virt * 4096);
@@ -248,9 +253,7 @@ namespace cosmos::memory::virt {
     uint64_t get_phys(const uint64_t virt) {
         const auto [pml4, pdp, pd, pt, offset] = unpack(virt);
 
-        uint64_t space;
-        asm volatile("mov %%cr3, %0" : "=r"(space));
-
+        const auto space = get_current();
         const auto pml4_table = get_ptr_from_phys<uint64_t>(space);
 
         // PML4 Entry - PDP Table

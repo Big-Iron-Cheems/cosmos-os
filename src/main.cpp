@@ -1,5 +1,6 @@
 #include "interrupts/isr.hpp"
 #include "limine.hpp"
+#include "memory/heap.hpp"
 #include "memory/physical.hpp"
 #include "memory/virtual.hpp"
 #include "serial.hpp"
@@ -19,6 +20,8 @@ extern "C" [[noreturn]] void main() {
 
     const auto space = memory::virt::create();
     memory::virt::switch_to(space);
+
+    memory::heap::init();
 
     serial::printf("[cosmos] %s\n", "Initialized");
 

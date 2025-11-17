@@ -17,6 +17,7 @@ executable(
         'src/interrupts/isr.cpp',
         'src/memory/physical.cpp',
         'src/memory/virtual.cpp',
+        'src/memory/heap.cpp',
         'src/main.cpp'
     ],
     include_directories: include_directories(

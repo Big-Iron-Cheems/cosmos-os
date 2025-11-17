@@ -21,6 +21,8 @@ namespace cosmos::memory::virt {
     using Space = uint64_t;
 
     Space create();
+    Space get_current();
+
     void destroy(Space space);
 
     bool map_pages(Space space, uint64_t virt, uint64_t phys, uint64_t count, bool cache_disabled);
