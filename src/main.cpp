@@ -9,18 +9,18 @@
 
 using namespace cosmos;
 
-[[noreturn]]
 void process1() {
-    for (;;) {
-        serial::print("[process 1] Hi\n");
+    for (auto i = 0; i < 5; i++) {
+        serial::printf("[process 1] Hi %d\n", i);
         scheduler::yield();
     }
 }
 
-[[noreturn]]
 void process2() {
-    for (;;) {
-        serial::print("[process 2] Hello\n");
+    for (auto i = 0; i < 10; i++) {
+        serial::printf("[process 2] Hello %d\n", i);
+
+        if (i == 4) scheduler::exit();
         scheduler::yield();
     }
 }

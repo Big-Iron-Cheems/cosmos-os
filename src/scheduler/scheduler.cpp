@@ -72,11 +72,6 @@ namespace cosmos::scheduler {
         )");
     }
 
-    void process_exit() {
-        serial::print("[scheduler] Process exited\n");
-        utils::halt();
-    }
-
     void init() {
         head = nullptr;
         tail = nullptr;
@@ -89,9 +84,13 @@ namespace cosmos::scheduler {
         if (head == nullptr) {
             head = process;
             tail = process;
+
+            process->next = process;
         } else {
             tail->next = process;
             tail = process;
+
+            process->next = head;
         }
 
         process->fn = fn;
@@ -102,7 +101,7 @@ namespace cosmos::scheduler {
 
         auto stack = static_cast<uint64_t*>(process->stack_top);
 
-        *--stack = reinterpret_cast<uint64_t>(process_exit);
+        *--stack = reinterpret_cast<uint64_t>(exit);
         *--stack = reinterpret_cast<uint64_t>(fn);
         *--stack = 0x202;
 
@@ -120,15 +119,37 @@ namespace cosmos::scheduler {
     }
 
     void yield() {
-        current->state = State::Waiting;
+        if (current->state != State::Exited) {
+            current->state = State::Waiting;
+        }
 
         const auto prev = current;
         current = current->next;
 
-        if (current == nullptr) current = head;
+        while (current->state == State::Exited) {
+            if (current->next == current) {
+                serial::print("[scheduler] All processes exited, stopping\n");
+                utils::halt();
+            }
+
+            const auto old = current;
+            current = old->next;
+            prev->next = old->next;
+
+            if (head == old) head = old->next;
+            if (tail == old) tail = prev;
+
+            memory::heap::free(old->stack);
+            memory::heap::free(old);
+        }
 
         current->state = State::Running;
         switch_to(&prev->rsp, current->rsp);
+    }
+
+    void exit() {
+        current->state = State::Exited;
+        yield();
     }
 
     void run() {
