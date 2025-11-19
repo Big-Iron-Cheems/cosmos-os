@@ -5,6 +5,17 @@
 #include "utils.hpp"
 
 namespace cosmos::scheduler {
+    struct Process {
+        Process* next;
+
+        ProcessFn fn;
+        State state;
+
+        void* stack;
+        void* stack_top;
+        uint64_t rsp;
+    };
+
     static Process* head;
     static Process* tail;
 
@@ -72,7 +83,7 @@ namespace cosmos::scheduler {
         current = nullptr;
     }
 
-    Process* create_process(const ProcessFn fn) {
+    ProcessId create_process(const ProcessFn fn) {
         const auto process = memory::heap::alloc<Process>();
 
         if (head == nullptr) {
@@ -101,7 +112,11 @@ namespace cosmos::scheduler {
 
         process->rsp = reinterpret_cast<uint64_t>(stack);
 
-        return process;
+        return reinterpret_cast<ProcessId>(process);
+    }
+
+    State get_process_state(const ProcessId id) {
+        return reinterpret_cast<Process*>(id)->state;
     }
 
     void yield() {

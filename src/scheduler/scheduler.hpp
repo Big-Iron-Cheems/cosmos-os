@@ -10,20 +10,13 @@ namespace cosmos::scheduler {
         Running,
     };
 
-    struct Process {
-        Process* next;
-
-        ProcessFn fn;
-        State state;
-
-        void* stack;
-        void* stack_top;
-        uint64_t rsp;
-    };
+    using ProcessId = uint64_t;
 
     void init();
 
-    Process* create_process(ProcessFn fn);
+    ProcessId create_process(ProcessFn fn);
+
+    State get_process_state(ProcessId id);
 
     void yield();
 
