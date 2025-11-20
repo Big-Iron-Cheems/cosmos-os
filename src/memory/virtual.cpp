@@ -1,6 +1,7 @@
 #include "virtual.hpp"
 
 #include "limine.hpp"
+#include "offsets.hpp"
 #include "physical.hpp"
 #include "serial.hpp"
 #include "utils.hpp"
@@ -104,7 +105,7 @@ namespace cosmos::memory::virt {
             const auto [type, address, length] = limine::get_memory_range(i);
 
             if (type == limine::MemoryType::ExecutableAndModules) {
-                const auto virt = limine::get_kernel_virt() / 4096ul;
+                constexpr auto virt = KERNEL / 4096ul;
                 const auto phys = address / 4096ul;
                 const auto count = utils::ceil_div(length, 4096ul);
 
@@ -121,11 +122,9 @@ namespace cosmos::memory::virt {
             const auto [type, address, length] = limine::get_memory_range(i);
 
             if (type == limine::MemoryType::Framebuffer) {
-                const auto& fb = limine::get_framebuffer();
-
-                const auto virt = reinterpret_cast<uint64_t>(fb.pixels) / 4096ul;
+                constexpr auto virt = FRAMEBUFFER / 4096ul;
                 const auto phys = address / 4096ul;
-                const auto count = utils::ceil_div(fb.width * fb.height * 4ul, 4096ul);
+                const auto count = utils::ceil_div(length, 4096ul);
 
                 return map_pages(space, virt, phys, count, false);
             }
@@ -136,7 +135,7 @@ namespace cosmos::memory::virt {
     }
 
     bool map_hhdm(const Space space) {
-        const auto virt = limine::get_hhdm() / 4096ul;
+        constexpr auto virt = DIRECT_MAP / 4096ul;
         constexpr auto phys = 0ul;
         const auto count = phys::get_total_pages();
 

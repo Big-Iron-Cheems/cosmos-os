@@ -1,6 +1,7 @@
 #include "interrupts/isr.hpp"
 #include "limine.hpp"
 #include "memory/heap.hpp"
+#include "memory/offsets.hpp"
 #include "memory/physical.hpp"
 #include "memory/virtual.hpp"
 #include "scheduler/scheduler.hpp"
@@ -46,7 +47,7 @@ void main() {
     serial::printf("[cosmos] Total memory: %d mB\n", static_cast<uint64_t>(memory::phys::get_total_pages()) * 4096 / 1024 / 1024);
     serial::printf("[cosmos] Free memory: %d mB\n", static_cast<uint64_t>(memory::phys::get_free_pages()) * 4096 / 1024 / 1024);
 
-    const auto pixels = static_cast<uint32_t*>(limine::get_framebuffer().pixels);
+    const auto pixels = reinterpret_cast<uint32_t*>(memory::virt::FRAMEBUFFER);
     pixels[0] = 0xFFFFFFFF;
     pixels[1] = 0xFFFF0000;
     pixels[2] = 0xFF00FF00;
