@@ -1,5 +1,6 @@
 #include "heap.hpp"
 
+#include "offsets.hpp"
 #include "physical.hpp"
 #include "virtual.hpp"
 
@@ -11,9 +12,6 @@ namespace cosmos::memory::heap {
         uint64_t size : 63;
     };
 
-    // Start at 1 tB in virtual address space
-    constexpr uint64_t HEAP_START = 1ul * 1024ul * 1024ul * 1024ul * 1024ul;
-
     static Region* head;
     static Region* tail;
     static uint64_t page_count;
@@ -23,10 +21,10 @@ namespace cosmos::memory::heap {
         if (phys == 0) return false;
 
         const auto space = virt::get_current();
-        if (!virt::map_pages(space, HEAP_START / 4096ul + page_count, phys / 4096ul, 1, false)) return false;
+        if (!virt::map_pages(space, virt::HEAP / 4096ul + page_count, phys / 4096ul, 1, false)) return false;
 
         if (tail == nullptr || tail->used) {
-            const auto region = reinterpret_cast<Region*>(HEAP_START + page_count * 4096ul);
+            const auto region = reinterpret_cast<Region*>(virt::HEAP + page_count * 4096ul);
             region->next = nullptr;
             region->used = false;
             region->size = 4096ul - sizeof(Region);

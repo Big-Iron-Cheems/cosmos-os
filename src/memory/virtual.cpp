@@ -95,8 +95,11 @@ namespace cosmos::memory::virt {
 
     // Space
 
+    static bool created_first_space = false;
+
     template <typename T>
     T* get_ptr_from_phys(const uint64_t phys) {
+        if (created_first_space) return reinterpret_cast<T*>(DIRECT_MAP + phys);
         return reinterpret_cast<T*>(limine::get_hhdm() + phys);
     }
 
@@ -160,6 +163,8 @@ namespace cosmos::memory::virt {
         MAP(map_hhdm)
 
 #undef MAP
+
+        created_first_space = true;
 
         return space;
     }
