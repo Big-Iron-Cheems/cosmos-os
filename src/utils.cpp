@@ -44,4 +44,16 @@ namespace cosmos::utils {
             static_cast<uint8_t*>(dst)[i] = static_cast<uint8_t*>(src)[i];
         }
     }
+
+    bool streq(const char* a, const char* b) {
+        while (*a != '\0' && *b != '\0') {
+            if (*a == '\0' || *b == '\0') return false;
+            if (*a != *b) return false;
+
+            a++;
+            b++;
+        }
+
+        return true;
+    }
 } // namespace cosmos::utils

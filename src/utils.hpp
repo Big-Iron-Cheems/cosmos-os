@@ -9,6 +9,8 @@ namespace cosmos::utils {
     void memset(void* dst, uint8_t value, uint64_t size);
     void memcpy(void* dst, void* src, uint64_t size);
 
+    bool streq(const char* a, const char* b);
+
     template <typename T>
     T ceil_div(T a, T b) {
         return (a + b - 1) / b;

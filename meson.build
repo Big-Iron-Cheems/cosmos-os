@@ -20,6 +20,9 @@ executable(
         'src/memory/heap.cpp',
         'src/scheduler/scheduler.cpp',
         'src/devices/ps2kbd.cpp',
+        'src/shell/font.cpp',
+        'src/shell/commands.cpp',
+        'src/shell/shell.cpp',
         'src/main.cpp'
     ],
     include_directories: include_directories(
