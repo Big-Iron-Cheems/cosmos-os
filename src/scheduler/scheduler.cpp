@@ -27,6 +27,9 @@ namespace cosmos::scheduler {
 
     __attribute__((naked)) void switch_to(uint64_t* old_sp, uint64_t new_sp) {
         asm volatile(R"(
+            # Disable interrupts
+            cli
+
             # Save current process state to the stack
             pushfq
             push %rax
@@ -68,6 +71,9 @@ namespace cosmos::scheduler {
             pop %rbx
             pop %rax
             popfq
+
+            # Enable interrupts
+            sti
 
             # Return to the code the process was executing previously
             ret

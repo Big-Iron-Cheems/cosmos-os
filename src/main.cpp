@@ -1,3 +1,4 @@
+#include "devices/ps2kbd.hpp"
 #include "interrupts/isr.hpp"
 #include "limine.hpp"
 #include "memory/heap.hpp"
@@ -19,6 +20,15 @@ void process1() {
     for (; *i < 5; (*i)++) {
         serial::printf("[process 1] Hi %d\n", *i);
         scheduler::yield();
+    }
+
+    devices::ps2kbd::reset_buffer();
+
+    for (;;) {
+        const auto [key, press] = devices::ps2kbd::wait_for_event();
+
+        const auto press_str = press ? "pressed" : "released";
+        serial::printf("[process 1] Key %d %s\n", key, press_str);
     }
 }
 
@@ -47,6 +57,8 @@ void init() {
     pixels[1] = 0xFFFF0000;
     pixels[2] = 0xFF00FF00;
     pixels[3] = 0xFF0000FF;
+
+    devices::ps2kbd::init();
 
     scheduler::create_process(process1);
     scheduler::create_process(process2);
