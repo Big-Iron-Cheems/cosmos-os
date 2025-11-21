@@ -84,9 +84,6 @@ namespace cosmos::memory::phys {
             }
         }
 
-        // Mark first page (starting at 0) as used just in case
-        mark_pages(0, 1, true);
-
         // Mark entries bitmask as used
         mark_pages(entries_page_index, entries_page_count, true);
     }
