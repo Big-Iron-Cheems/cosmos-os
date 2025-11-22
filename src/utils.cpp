@@ -19,11 +19,11 @@ namespace cosmos::utils {
         }
     }
 
-    void memcpy(void* dst, void* src, uint64_t size) {
+    void memcpy(void* dst, const void* src, uint64_t size) {
         // Copy 1 byte at a time
         if (size < 128) {
             for (uint64_t i = 0; i < size; i++) {
-                static_cast<uint8_t*>(dst)[i] = static_cast<uint8_t*>(src)[i];
+                static_cast<uint8_t*>(dst)[i] = static_cast<const uint8_t*>(src)[i];
             }
 
             return;
@@ -33,16 +33,27 @@ namespace cosmos::utils {
         const auto size64 = size / 8;
 
         for (uint64_t i = 0; i < size64; i++) {
-            static_cast<uint64_t*>(dst)[i] = static_cast<uint64_t*>(src)[i];
+            static_cast<uint64_t*>(dst)[i] = static_cast<const uint64_t*>(src)[i];
         }
 
         dst = static_cast<uint8_t*>(dst) + size64 * 8;
-        src = static_cast<uint8_t*>(src) + size64 * 8;
+        src = static_cast<const uint8_t*>(src) + size64 * 8;
         size -= size64 * 8;
 
         for (uint64_t i = 0; i < size; i++) {
-            static_cast<uint8_t*>(dst)[i] = static_cast<uint8_t*>(src)[i];
+            static_cast<uint8_t*>(dst)[i] = static_cast<const uint8_t*>(src)[i];
         }
+    }
+
+    uint32_t strlen(const char* str) {
+        auto length = 0u;
+
+        while (*str != '\0') {
+            length++;
+            str++;
+        }
+
+        return length;
     }
 
     bool streq(const char* a, const char* b) {

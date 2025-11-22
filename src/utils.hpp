@@ -7,9 +7,11 @@ namespace cosmos::utils {
     void halt();
 
     void memset(void* dst, uint8_t value, uint64_t size);
-    void memcpy(void* dst, void* src, uint64_t size);
+    void memcpy(void* dst, const void* src, uint64_t size);
 
+    uint32_t strlen(const char* str);
     bool streq(const char* a, const char* b);
+    bool str_has_prefix(const char* str, const char* prefix);
 
     template <typename T>
     T ceil_div(T a, T b) {
