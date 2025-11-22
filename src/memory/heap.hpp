@@ -5,16 +5,20 @@
 namespace cosmos::memory::heap {
     void init();
 
-    void* alloc(uint64_t size);
+    void* alloc(uint64_t size, uint64_t alignment);
     void free(void* ptr);
+
+    inline void* alloc(const uint64_t size) {
+        return alloc(size, 1);
+    }
 
     template <typename T>
     T* alloc() {
-        return static_cast<T*>(alloc(sizeof(T)));
+        return static_cast<T*>(alloc(sizeof(T), alignof(T)));
     }
 
     template <typename T>
     T* alloc_array(const uint32_t count) {
-        return static_cast<T*>(alloc(sizeof(T) * count));
+        return static_cast<T*>(alloc(sizeof(T) * count, alignof(T)));
     }
 } // namespace cosmos::memory::heap

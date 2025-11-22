@@ -13,11 +13,11 @@ iso : build vendor/limine/limine
 
 # --- RUN ---
 
-QEMU_ARGS = -drive id=disk,file=cosmos-os.iso,format=raw,if=none -device ide-hd,drive=disk -accel kvm
+QEMU_ARGS = -drive id=disk,file=cosmos-os.iso,format=raw,if=none -device ide-hd,drive=disk
 
 .PHONY : run
 run : iso
-	qemu-system-x86_64 $(QEMU_ARGS)
+	qemu-system-x86_64 $(QEMU_ARGS) -accel kvm
 
 .PHONY : debug
 debug : iso

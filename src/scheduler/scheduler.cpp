@@ -105,8 +105,8 @@ namespace cosmos::scheduler {
 
         process->space = space;
 
-        process->stack = memory::heap::alloc(STACK_SIZE);
-        process->stack_top = reinterpret_cast<void*>((reinterpret_cast<uint64_t>(process->stack) + STACK_SIZE) & ~0xFULL);
+        process->stack = memory::heap::alloc(STACK_SIZE, 16);
+        process->stack_top = reinterpret_cast<void*>(reinterpret_cast<uint64_t>(process->stack) + STACK_SIZE);
 
         auto stack = static_cast<uint64_t*>(process->stack_top);
 

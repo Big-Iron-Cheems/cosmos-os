@@ -2,6 +2,7 @@
 
 #include "offsets.hpp"
 #include "physical.hpp"
+#include "utils.hpp"
 #include "virtual.hpp"
 
 namespace cosmos::memory::heap {
@@ -73,8 +74,10 @@ namespace cosmos::memory::heap {
         return current + 1;
     }
 
-    void* alloc(const uint64_t size) {
-#define CHECK_REGION(region) (!region->used && region->size >= size)
+    void* alloc(const uint64_t size, const uint64_t alignment) {
+#define REGION_START(region) reinterpret_cast<uint64_t>(region + 1)
+#define CALC_PADDING(region) (utils::align(REGION_START(region), alignment) - REGION_START(region))
+#define CHECK_REGION(region) (!region->used && region->size >= size + CALC_PADDING(region))
 
         auto current = head;
 
@@ -94,9 +97,12 @@ namespace cosmos::memory::heap {
             current = tail;
         }
 
-        return alloc_from_node(current, size);
+        const auto padding = CALC_PADDING(current);
+        return reinterpret_cast<void*>(padding + reinterpret_cast<uint64_t>(alloc_from_node(current, padding + size)));
 
 #undef CHECK_REGION
+#undef CALC_PADDING
+#undef REGION_START
     }
 
     void merge_forward(Region* region) {
@@ -113,8 +119,13 @@ namespace cosmos::memory::heap {
         Region* prev = nullptr;
         Region* current = head;
 
+        const auto ptr_address = reinterpret_cast<uint64_t>(ptr);
+
         do {
-            if (reinterpret_cast<uint64_t>(ptr) == reinterpret_cast<uint64_t>(current + 1)) {
+            const auto start = reinterpret_cast<uint64_t>(current + 1);
+            const auto end = start + current->size;
+
+            if (ptr_address >= start && ptr_address < end) {
                 break;
             }
 
