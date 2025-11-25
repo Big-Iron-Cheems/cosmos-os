@@ -17,6 +17,7 @@
 #include "ctype.hpp"
 #include <compare>
 #include <cstddef>
+#include <cstdint>
 #include <limits>
 
 namespace cosmos::stl {
