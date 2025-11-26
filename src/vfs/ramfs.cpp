@@ -195,7 +195,7 @@ namespace cosmos::vfs::ramfs {
         Node* prev = nullptr;
         ViewPathEntryIt it;
 
-        auto node = find_node(handle, stl::StringView(path), prev, it);
+        auto node = find_node(handle, path, prev, it);
         if (prev == nullptr) return nullptr;
 
         if (node == nullptr && (mode == Mode::Write || mode == Mode::ReadWrite)) {
@@ -224,7 +224,7 @@ namespace cosmos::vfs::ramfs {
         Node* prev = nullptr;
         ViewPathEntryIt it;
 
-        const auto node = find_node(handle, stl::StringView(path), prev, it);
+        const auto node = find_node(handle, path, prev, it);
         if (node == nullptr || node->is_file || node->dir.opened) return nullptr;
 
         node->dir.opened = true;
@@ -247,7 +247,7 @@ namespace cosmos::vfs::ramfs {
         ViewPathEntryIt it;
 
         // Find the node corresponding to the final path segment (if it exists)
-        const auto node = find_node(handle, stl::StringView(path), parent, it);
+        const auto node = find_node(handle, path, parent, it);
 
         // parent should point to the parent directory of the final entry
         if (parent == nullptr) return false;
@@ -274,7 +274,7 @@ namespace cosmos::vfs::ramfs {
         ViewPathEntryIt it;
 
         // Find the node to remove and its parent
-        const auto node = find_node(handle, stl::StringView(path), parent, it);
+        const auto node = find_node(handle, path, parent, it);
         if (node == nullptr || parent == nullptr) return false;
 
         // Remove file
@@ -304,7 +304,7 @@ namespace cosmos::vfs::ramfs {
 
     void create(Fs* fs) {
         const auto root = static_cast<Node*>(memory::heap::alloc(sizeof(Node) + 2, alignof(Node)));
-        root->init_name(stl::StringView("/"));
+        root->init_name("/");
         root->is_file = false;
         root->dir.children = {};
         root->dir.opened = false;

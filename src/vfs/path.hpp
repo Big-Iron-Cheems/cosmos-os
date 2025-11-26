@@ -8,10 +8,6 @@
 namespace cosmos::vfs {
     uint32_t check_abs_path(stl::StringView path);
 
-    inline uint32_t check_abs_path(const char* path) {
-        return check_abs_path(stl::StringView(path));
-    }
-
     struct PathEntryIt {
         const char* entry;
         uint32_t length;

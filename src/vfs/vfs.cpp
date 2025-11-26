@@ -25,9 +25,7 @@ namespace cosmos::vfs {
         return &mount->fs;
     }
 
-    const Fs* get_fs(const char* path_str, const char*& fs_path) {
-        const auto path = stl::StringView(path_str);
-
+    const Fs* get_fs(const stl::StringView path, const char*& fs_path) {
         const auto length = check_abs_path(path);
         if (length == 0) return nullptr;
 

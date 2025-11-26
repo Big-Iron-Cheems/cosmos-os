@@ -28,7 +28,7 @@ namespace cosmos::stl {
       public:
         constexpr StringView() noexcept = default;
         constexpr StringView(const char* s, const size_t n) noexcept : data_(s), size_(n) {}
-        explicit constexpr StringView(const char* s) noexcept : data_(s), size_(s ? calculate_len(s) : 0) {}
+        constexpr StringView(const char* s) noexcept : data_(s), size_(s ? calculate_len(s) : 0) {} // NOLINT(*-explicit-constructor)
 
         // Accessors
 
