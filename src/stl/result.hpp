@@ -1,11 +1,11 @@
-// expected.hpp
-// Minimal Expected/Unexpected for the freestanding kernel.
+// result.hpp
+// Minimal Result/Err for the freestanding kernel.
 
 // Notes:
-// - Provides `Expected<T, E>` and `Unexpected<E>` types for value-or-error semantics.
+// - Provides `Result<T, E>` and `Err<E>` types for value-or-error semantics.
 // - Supports manual lifetime management via union to avoid dynamic allocation.
 // - Provides a minimal interface similar to `std::expected` from C++23, but suitable for freestanding/no-std environments.
-// - `Expected<void, E>` specialization handles operations where the success type is void.
+// - `Result<void, E>` specialization handles operations where the success type is void.
 // - Observers (`value()`, `error()`) and convenience functions (`value_or`, `error_or`, `emplace`) are provided for ergonomics.
 // - All methods are `constexpr` where possible and do not rely on standard library containers.
 // - Copy/move operations and assignments are carefully implemented to manage union storage safely.
@@ -20,10 +20,10 @@
 namespace cosmos::stl {
 
     // ========================
-    // Unexpected wrapper
+    // Err wrapper
     // ========================
 
-    /// @brief Wrapper type representing an unexpected error.
+    /// @brief Wrapper type representing an error (used via `Err<E>`).
     /// @tparam E The error type.
     template <class E>
     struct Err {
@@ -54,10 +54,10 @@ namespace cosmos::stl {
     };
 
     // ========================
-    // Expected specialization for T != void
+    // Result specialization for T != void
     // ========================
 
-    /// @brief Expected type representing either a value or an error.
+    /// @brief Result type representing either a value or an error.
     /// @tparam T The success type.
     /// @tparam E The error type.
     template <class T, class E>
@@ -100,20 +100,20 @@ namespace cosmos::stl {
             new (&storage_.value) T(static_cast<T&&>(v));
         }
 
-        /// @brief Construct from const Unexpected.
-        /// @param u The unexpected error.
+        /// @brief Construct from const Err.
+        /// @param u The Err wrapper containing the error.
         constexpr Result(const Err<E>& u) : has_value_(false) { // NOLINT(*-explicit-constructor)
             new (&storage_.error) E(u.error());
         }
 
-        /// @brief Construct from rvalue Unexpected.
-        /// @param u The unexpected error.
+        /// @brief Construct from rvalue Err.
+        /// @param u The Err wrapper containing the error.
         constexpr Result(Err<E>&& u) : has_value_(false) { // NOLINT(*-explicit-constructor)
             new (&storage_.error) E(static_cast<E&&>(u.error()));
         }
 
         /// @brief Copy constructor.
-        /// @param o Other Expected object.
+        /// @param o Other Result object.
         constexpr Result(const Result& o) : has_value_(o.has_value_) {
             if (has_value_)
                 new (&storage_.value) T(o.storage_.value);
@@ -122,7 +122,7 @@ namespace cosmos::stl {
         }
 
         /// @brief Move constructor.
-        /// @param o Other Expected object to move from.
+        /// @param o Other Result object to move from.
         constexpr Result(Result&& o) noexcept(std::is_nothrow_move_constructible_v<T> && std::is_nothrow_move_constructible_v<E>)
             : has_value_(o.has_value_) {
             if (has_value_)
@@ -141,7 +141,7 @@ namespace cosmos::stl {
         // ========================
 
         /// @brief Copy assignment.
-        /// @param o Other Expected object.
+        /// @param o Other Result object.
         /// @return *this
         constexpr Result& operator=(const Result& o) {
             if (this == &o) return *this;
@@ -161,7 +161,7 @@ namespace cosmos::stl {
         }
 
         /// @brief Move assignment.
-        /// @param o Other Expected object.
+        /// @param o Other Result object.
         /// @return *this
         constexpr Result& operator=(Result&& o) noexcept(std::is_nothrow_move_constructible_v<T> &&
                                                          std::is_nothrow_move_constructible_v<E> && std::is_nothrow_move_assignable_v<T> &&
@@ -278,10 +278,10 @@ namespace cosmos::stl {
     };
 
     // ========================
-    // Expected specialization for void
+    // Result specialization for void
     // ========================
 
-    /// @brief Expected specialization for void success type.
+    /// @brief Result specialization for void success type.
     /// @tparam E The error type.
     template <class E>
     class Result<void, E> {
@@ -304,12 +304,14 @@ namespace cosmos::stl {
         /// @brief Default success constructor.
         constexpr Result() noexcept : has_value_(true) {}
 
-        /// @brief Construct from const Unexpected.
+        /// @brief Construct from const Err.
+        /// @param u The Err wrapper containing the error.
         constexpr Result(const Err<E>& u) : has_value_(false) { // NOLINT(*-explicit-constructor)
             new (&storage_.error) E(u.error());
         }
 
-        /// @brief Construct from rvalue Unexpected.
+        /// @brief Construct from rvalue Err.
+        /// @param u The Err wrapper containing the error.
         constexpr Result(Err<E>&& u) : has_value_(false) { // NOLINT(*-explicit-constructor)
             new (&storage_.error) E(static_cast<E&&>(u.error()));
         }
