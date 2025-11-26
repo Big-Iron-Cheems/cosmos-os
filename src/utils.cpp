@@ -14,13 +14,13 @@ namespace cosmos::utils {
         }
     }
 
-    void memset(void* dst, const uint8_t value, const uint64_t size) {
+    void memset(void* dst, const uint8_t value, const std::size_t size) {
         for (uint64_t i = 0; i < size; i++) {
             static_cast<uint8_t*>(dst)[i] = value;
         }
     }
 
-    void memcpy(void* dst, const void* src, uint64_t size) {
+    void memcpy(void* dst, const void* src, std::size_t size) {
         // Copy 1 byte at a time
         if (size < 128) {
             for (uint64_t i = 0; i < size; i++) {
@@ -117,3 +117,15 @@ namespace cosmos::utils {
         return str;
     }
 } // namespace cosmos::utils
+
+extern "C" {
+void* memset(void* dest, const int ch, const std::size_t count) {
+    cosmos::utils::memset(dest, ch, count);
+    return dest;
+}
+
+void* memcpy(void* dest, const void* src, const std::size_t count) {
+    cosmos::utils::memcpy(dest, src, count);
+    return dest;
+}
+}

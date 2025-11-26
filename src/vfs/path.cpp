@@ -4,11 +4,11 @@
 #include "utils.hpp"
 
 namespace cosmos::vfs {
-    uint32_t check_abs_path(const char* path) {
-        if (*path != '/') return 0;
+    uint32_t check_abs_path(const stl::StringView path) {
+        if (path[0] != '/') return 0;
         auto length = 1u;
 
-        while (path[length] != '\0') {
+        for (; length < path.size(); length++) {
             if (path[length] == '/' && path[length - 1] == '/') {
                 return 0;
             }
@@ -16,8 +16,6 @@ namespace cosmos::vfs {
             if (path[length] == ' ' && (path[length - 1] == '/' || path[length + 1] == '/' || path[length + 1] == '\0')) {
                 return 0;
             }
-
-            length++;
         }
 
         if (length > 1 && path[length - 1] == '/') {
@@ -52,6 +50,38 @@ namespace cosmos::vfs {
         return {
             .entry = path,
             .length = 0,
+        };
+    }
+
+    bool ViewPathEntryIt::next() {
+        const auto prev_entry = entry;
+
+        const auto index = reinterpret_cast<uintptr_t>(entry.data()) - reinterpret_cast<uintptr_t>(path.data());
+        entry = path.substr(index + entry.size());
+
+        while (entry[0] == '/') {
+            entry = entry.substr(1);
+        }
+
+        if (entry.empty()) {
+            entry = prev_entry;
+            return false;
+        }
+
+        auto i = 0u;
+
+        while (i < entry.size() && entry[i] != '/') {
+            i++;
+        }
+
+        entry = entry.substr(0, i);
+        return true;
+    }
+
+    ViewPathEntryIt iterate_view_path_entries(const stl::StringView path) {
+        return {
+            .path = path,
+            .entry = path.substr(0, 0),
         };
     }
 
@@ -98,7 +128,8 @@ namespace cosmos::vfs {
         if (cwd_len == 0) return nullptr;
 
         uint32_t path_len = 0;
-        while (trimmed[path_len] != '\0') path_len++;
+        while (trimmed[path_len] != '\0')
+            path_len++;
 
         const auto joined_len = cwd_len + 1 + path_len + 1;
         const auto joined = static_cast<char*>(memory::heap::alloc(joined_len));
@@ -130,7 +161,8 @@ namespace cosmos::vfs {
 
                     // Remove last segment: find last '/' in segments
                     uint32_t i = seg_len;
-                    while (i > 0 && segments[i - 1] != '/') i--;
+                    while (i > 0 && segments[i - 1] != '/')
+                        i--;
                     seg_len = i > 0 ? i - 1 : 0;
                     segments[seg_len] = '\0';
                     continue;

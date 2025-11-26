@@ -14,7 +14,8 @@ namespace cosmos::devices::ps2kbd {
         uint8_t raw;
 
 #define FIELD(name, index)                                                                                                                 \
-    [[nodiscard]] bool name() const {                                                                                                      \
+    [[nodiscard]]                                                                                                                          \
+    bool name() const {                                                                                                                    \
         return raw & (1 << index);                                                                                                         \
     }                                                                                                                                      \
     void name(const bool value) {                                                                                                          \

@@ -42,16 +42,14 @@ namespace cosmos::serial {
     }
 
     void print(const char* str) {
-        if (DISABLED)
-            return;
+        if (DISABLED) return;
 
         auto i = 0;
 
         for (;;) {
             const auto ch = str[i++];
 
-            if (ch == '\0')
-                break;
+            if (ch == '\0') break;
 
             if (ch == '\n') {
                 wait_for_transmit();

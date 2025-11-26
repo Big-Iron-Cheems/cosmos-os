@@ -82,8 +82,9 @@ namespace cosmos::pic {
     }
 
     void end_irq(const uint8_t number) {
-        if (number >= 8)
+        if (number >= 8) {
             utils::byte_out(SLAVE_COMMAND, 0x20);
+        }
 
         utils::byte_out(MASTER_COMMAND, 0x20);
     }

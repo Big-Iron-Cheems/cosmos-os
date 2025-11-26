@@ -6,8 +6,8 @@ namespace cosmos::utils {
     [[noreturn]]
     void halt();
 
-    void memset(void* dst, uint8_t value, uint64_t size);
-    void memcpy(void* dst, const void* src, uint64_t size);
+    void memset(void* dst, uint8_t value, std::size_t size);
+    void memcpy(void* dst, const void* src, std::size_t size);
 
     uint32_t strlen(const char* str);
     char* strdup(const char* str, uint32_t str_length);

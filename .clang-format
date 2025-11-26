@@ -7,7 +7,7 @@ MaxEmptyLinesToKeep: 2
 NamespaceIndentation: All
 PointerAlignment: Left
 SortIncludes: true
-BreakAfterAttributes: Leave
+BreakAfterAttributes: Always
 Cpp11BracedListStyle: false
 AllowShortFunctionsOnASingleLine: Empty
 AllowShortIfStatementsOnASingleLine: WithoutElse

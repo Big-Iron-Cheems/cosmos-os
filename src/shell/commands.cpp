@@ -4,8 +4,8 @@
 #include "memory/physical.hpp"
 #include "shell.hpp"
 #include "utils.hpp"
-#include "vfs/vfs.hpp"
 #include "vfs/path.hpp"
+#include "vfs/vfs.hpp"
 
 namespace cosmos::shell {
     struct Command {

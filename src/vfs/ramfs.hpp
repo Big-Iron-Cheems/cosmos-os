@@ -4,4 +4,4 @@
 
 namespace cosmos::vfs::ramfs {
     void create(Fs* fs);
-} // namespace cosmos::vfs
+} // namespace cosmos::vfs::ramfs

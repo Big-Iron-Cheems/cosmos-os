@@ -2,6 +2,7 @@
 
 #include "memory/heap.hpp"
 #include "path.hpp"
+#include "stl/string_view.hpp"
 #include "utils.hpp"
 
 namespace cosmos::vfs::ramfs {
@@ -28,9 +29,7 @@ namespace cosmos::vfs::ramfs {
     struct Node {
         Node* next_child;
 
-        const char* name;
-        uint32_t name_length;
-
+        stl::StringView name;
         bool is_file;
 
         union {
@@ -38,12 +37,13 @@ namespace cosmos::vfs::ramfs {
             NodeFile file;
         };
 
-        Node* find_child(const char* child_name, const uint32_t child_name_length) const {
+        [[nodiscard]]
+        Node* find_child(const stl::StringView child_name) const {
             if (is_file) return nullptr;
             auto child = dir.children_head;
 
             while (child != nullptr) {
-                if (utils::streq(child->name, child->name_length, child_name, child_name_length)) {
+                if (child->name == child_name) {
                     return child;
                 }
 
@@ -149,7 +149,7 @@ namespace cosmos::vfs::ramfs {
         if (node->dir.child != nullptr) {
             const auto child = node->dir.child;
             node->dir.child = child->next_child;
-            return child->name;
+            return child->name.data();
         }
 
         return nullptr;
@@ -165,26 +165,25 @@ namespace cosmos::vfs::ramfs {
         .close = dir_close,
     };
 
-    Node* alloc_node(const char* name, const uint32_t name_length) {
-        const auto node = static_cast<Node*>(memory::heap::alloc(sizeof(Node) + name_length + 1, alignof(Node)));
-        utils::memset(node, 0, sizeof(Node) + name_length + 1);
+    Node* alloc_node(const stl::StringView name) {
+        const auto node = static_cast<Node*>(memory::heap::alloc(sizeof(Node) + name.size(), alignof(Node)));
+        utils::memset(node, 0, sizeof(Node) + name.size() + 1);
 
-        node->name = reinterpret_cast<const char*>(node + 1);
-        node->name_length = name_length;
-        utils::memcpy(const_cast<char*>(node->name), name, name_length);
+        node->name = stl::StringView(reinterpret_cast<const char*>(node + 1), name.size());
+        utils::memcpy(const_cast<char*>(node->name.data()), name.data(), name.size());
 
         return node;
     }
 
-    Node* find_node(void* handle, const char* path, Node*& prev, PathEntryIt& it) {
+    Node* find_node(void* handle, const stl::StringView path, Node*& prev, ViewPathEntryIt& it) {
         auto node = static_cast<Node*>(handle);
-        it = iterate_path_entries(path);
+        it = iterate_view_path_entries(path);
 
         while (it.next()) {
             prev = node;
 
             if (node != nullptr) {
-                node = node->find_child(it.entry, it.length);
+                node = node->find_child(it.entry);
             } else {
                 node = nullptr;
             }
@@ -206,8 +205,10 @@ namespace cosmos::vfs::ramfs {
 
         if (cur == nullptr) return false;
 
-        if (prev == nullptr) parent->dir.children_head = cur->next_child;
-        else prev->next_child = cur->next_child;
+        if (prev == nullptr)
+            parent->dir.children_head = cur->next_child;
+        else
+            prev->next_child = cur->next_child;
 
         if (parent->dir.children_tail == cur) parent->dir.children_tail = prev;
 
@@ -216,13 +217,13 @@ namespace cosmos::vfs::ramfs {
 
     File* fs_open_file(void* handle, const char* path, const Mode mode) {
         Node* prev = nullptr;
-        PathEntryIt it;
+        ViewPathEntryIt it;
 
-        auto node = find_node(handle, path, prev, it);
+        auto node = find_node(handle, stl::StringView(path), prev, it);
         if (prev == nullptr) return nullptr;
 
         if (node == nullptr && (mode == Mode::Write || mode == Mode::ReadWrite)) {
-            node = alloc_node(it.entry, it.length);
+            node = alloc_node(it.entry);
             node->is_file = true;
 
             prev->add_child(node);
@@ -247,9 +248,9 @@ namespace cosmos::vfs::ramfs {
 
     Directory* fs_open_dir(void* handle, const char* path) {
         Node* prev = nullptr;
-        PathEntryIt it;
+        ViewPathEntryIt it;
 
-        const auto node = find_node(handle, path, prev, it);
+        const auto node = find_node(handle, stl::StringView(path), prev, it);
         if (node == nullptr || node->is_file || node->dir.opened) return nullptr;
 
         node->dir.opened = true;
@@ -269,10 +270,10 @@ namespace cosmos::vfs::ramfs {
         if (path[0] == '/' && path[1] == '\0') return true;
 
         Node* parent = nullptr;
-        PathEntryIt it;
+        ViewPathEntryIt it;
 
         // Find the node corresponding to the final path segment (if it exists)
-        const auto node = find_node(handle, path, parent, it);
+        const auto node = find_node(handle, stl::StringView(path), parent, it);
 
         // parent should point to the parent directory of the final entry
         if (parent == nullptr) return false;
@@ -281,7 +282,7 @@ namespace cosmos::vfs::ramfs {
         if (node != nullptr) return !node->is_file;
 
         // Otherwise create a new directory node under parent using the final segment from 'it'
-        const auto new_node = alloc_node(it.entry, it.length);
+        const auto new_node = alloc_node(it.entry);
         new_node->is_file = false;
         new_node->dir.children_head = nullptr;
         new_node->dir.children_tail = nullptr;
@@ -299,10 +300,10 @@ namespace cosmos::vfs::ramfs {
         if (path[0] == '/' && path[1] == '\0') return false;
 
         Node* parent = nullptr;
-        PathEntryIt it;
+        ViewPathEntryIt it;
 
         // Find the node to remove and its parent
-        const auto node = find_node(handle, path, parent, it);
+        const auto node = find_node(handle, stl::StringView(path), parent, it);
         if (node == nullptr || parent == nullptr) return false;
 
         // Remove file
@@ -335,7 +336,7 @@ namespace cosmos::vfs::ramfs {
     };
 
     void create(Fs* fs) {
-        fs->handle = alloc_node("/", 1);
+        fs->handle = alloc_node(stl::StringView("/", 1));
         fs->ops = &fs_ops;
     }
 } // namespace cosmos::vfs::ramfs

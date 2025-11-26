@@ -82,9 +82,11 @@ namespace cosmos::shell {
 
         // shorten with ellipsis, keep trailing segments up to MAX_PROMPT_LEN
         uint32_t take = 0;
-        for (auto i = cwd_len; i > 0 && take < MAX_PROMPT_LEN - 5; ) {
+        for (auto i = cwd_len; i > 0 && take < MAX_PROMPT_LEN - 5;) {
             auto j = i;
-            while (j > 0 && cwd_str[j - 1] != '/') j--;
+            while (j > 0 && cwd_str[j - 1] != '/') {
+                j--;
+            }
             const auto seg_len = i - j;
 
             if (take + seg_len + 1 > MAX_PROMPT_LEN - 5) break;

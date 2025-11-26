@@ -8,9 +8,7 @@ namespace cosmos::vfs {
     struct Mount {
         Mount* next;
 
-        char* path;
-        uint32_t path_length;
-
+        stl::StringView path;
         Fs fs;
     };
 
@@ -21,7 +19,7 @@ namespace cosmos::vfs {
         const auto path_length = check_abs_path(path);
         if (path_length == 0) return nullptr;
 
-        const auto mount = static_cast<Mount*>(memory::heap::alloc(sizeof(Mount) + path_length + 1));
+        const auto mount = static_cast<Mount*>(memory::heap::alloc(sizeof(Mount) + path_length));
         mount->next = nullptr;
 
         if (head == nullptr) {
@@ -32,16 +30,15 @@ namespace cosmos::vfs {
             tail = mount;
         }
 
-        mount->path = reinterpret_cast<char*>(mount + 1);
-        mount->path_length = path_length;
-
-        utils::memcpy(mount->path, path, path_length);
-        mount->path[path_length] = '\0';
+        mount->path = stl::StringView(reinterpret_cast<char*>(mount + 1), path_length);
+        utils::memcpy(const_cast<char*>(mount->path.data()), path, path_length);
 
         return &mount->fs;
     }
 
-    const Fs* get_fs(const char* path, const char*& fs_path) {
+    const Fs* get_fs(const char* path_str, const char*& fs_path) {
+        const auto path = stl::StringView(path_str);
+
         const auto length = check_abs_path(path);
         if (length == 0) return nullptr;
 
@@ -51,12 +48,12 @@ namespace cosmos::vfs {
         const Fs* fs = nullptr;
 
         while (mount != nullptr) {
-            if (mount->path_length == 1 && mount->path[0] == '/' && 1 > longest_mount_length) {
+            if (mount->path.size() == 1 && mount->path[0] == '/' && 1 > longest_mount_length) {
                 longest_mount_length = 1;
                 fs = &mount->fs;
-            } else if (utils::str_has_prefix(path, mount->path)) {
-                if ((path[mount->path_length] == '/' || path[mount->path_length] == '\0') && mount->path_length > longest_mount_length) {
-                    longest_mount_length = mount->path_length;
+            } else if (path.starts_with(mount->path)) {
+                if ((path[mount->path.size()] == '/' || path.size() == mount->path.size()) && mount->path.size() > longest_mount_length) {
+                    longest_mount_length = mount->path.size();
                     fs = &mount->fs;
                 }
             }
