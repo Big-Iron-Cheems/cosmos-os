@@ -13,9 +13,9 @@
 
 #pragma once
 
-
 #include <new>         // for placement new
 #include <type_traits> // for type traits
+#include <utility>     // for std::move, std::forward
 
 namespace cosmos::stl {
 
@@ -38,7 +38,7 @@ namespace cosmos::stl {
 
         /// @brief Construct from rvalue error.
         /// @param e The error to store.
-        constexpr explicit Err(E&& e) : error_(static_cast<E&&>(e)) {}
+        constexpr explicit Err(E&& e) : error_(std::move(e)) {}
 
         /// @brief Access stored error (const lvalue).
         /// @return const reference to error.
@@ -64,6 +64,7 @@ namespace cosmos::stl {
     class Result {
         static_assert(!std::is_reference_v<T>, "T must not be a reference type.");
         static_assert(!std::is_reference_v<E>, "E must not be a reference type.");
+        static_assert(!std::is_void_v<E>, "E must not be void.");
 
         union Storage {
             T value; ///< Stored value
@@ -88,6 +89,13 @@ namespace cosmos::stl {
         // Constructors
         // ========================
 
+        /// @brief Default constructor - constructs value via T's default ctor.
+        constexpr Result() noexcept(std::is_nothrow_default_constructible_v<T>)
+            requires std::is_default_constructible_v<T>
+            : has_value_(true) {
+            new (&storage_.value) T();
+        }
+
         /// @brief Construct from lvalue value.
         /// @param v The value to store.
         constexpr Result(const T& v) : has_value_(true) { // NOLINT(*-explicit-constructor)
@@ -97,7 +105,7 @@ namespace cosmos::stl {
         /// @brief Construct from rvalue value.
         /// @param v The value to store.
         constexpr Result(T&& v) : has_value_(true) { // NOLINT(*-explicit-constructor)
-            new (&storage_.value) T(static_cast<T&&>(v));
+            new (&storage_.value) T(std::move(v));
         }
 
         /// @brief Construct from const Err.
@@ -109,7 +117,7 @@ namespace cosmos::stl {
         /// @brief Construct from rvalue Err.
         /// @param u The Err wrapper containing the error.
         constexpr Result(Err<E>&& u) : has_value_(false) { // NOLINT(*-explicit-constructor)
-            new (&storage_.error) E(static_cast<E&&>(u.error()));
+            new (&storage_.error) E(std::move(u.error()));
         }
 
         /// @brief Copy constructor.
@@ -126,15 +134,22 @@ namespace cosmos::stl {
         constexpr Result(Result&& o) noexcept(std::is_nothrow_move_constructible_v<T> && std::is_nothrow_move_constructible_v<E>)
             : has_value_(o.has_value_) {
             if (has_value_)
-                new (&storage_.value) T(static_cast<T&&>(o.storage_.value));
+                new (&storage_.value) T(std::move(o.storage_.value));
             else
-                new (&storage_.error) E(static_cast<E&&>(o.storage_.error));
+                new (&storage_.error) E(std::move(o.storage_.error));
         }
 
         /// @brief Destructor.
-        ~Result() noexcept {
+        ~Result() noexcept
+            requires(!std::is_trivially_destructible_v<T> || !std::is_trivially_destructible_v<E>)
+        {
             destroy();
         }
+
+        /// @brief Destructor (trivial specialization).
+        ~Result() noexcept
+            requires(std::is_trivially_destructible_v<T> && std::is_trivially_destructible_v<E>)
+        = default;
 
         // ========================
         // Assignment
@@ -168,16 +183,17 @@ namespace cosmos::stl {
                                                          std::is_nothrow_move_assignable_v<E>) {
             if (this == &o) return *this;
             if (has_value_ && o.has_value_) {
-                storage_.value = static_cast<T&&>(o.storage_.value);
+                storage_.value = std::move(o.storage_.value);
             } else if (!has_value_ && !o.has_value_) {
-                storage_.error = static_cast<E&&>(o.storage_.error);
+                storage_.error = std::move(o.storage_.error);
             } else {
                 destroy();
                 has_value_ = o.has_value_;
-                if (has_value_)
-                    new (&storage_.value) T(static_cast<T&&>(o.storage_.value));
-                else
-                    new (&storage_.error) E(static_cast<E&&>(o.storage_.error));
+                if (has_value_) {
+                    new (&storage_.value) T(std::move(o.storage_.value));
+                } else {
+                    new (&storage_.error) E(std::move(o.storage_.error));
+                }
             }
             return *this;
         }
@@ -230,50 +246,90 @@ namespace cosmos::stl {
         // Convenience
         // ========================
 
+        /// @brief Dereference operator (lvalue).
         [[nodiscard]] constexpr T& operator*() & noexcept {
             return storage_.value;
         }
+
+        /// @brief Dereference operator (const lvalue).
         [[nodiscard]] constexpr const T& operator*() const& noexcept {
             return storage_.value;
         }
+
+        /// @brief Arrow operator (non-const).
         [[nodiscard]] constexpr T* operator->() noexcept {
             return &storage_.value;
         }
+
+        /// @brief Arrow operator (const).
         [[nodiscard]] constexpr const T* operator->() const noexcept {
             return &storage_.value;
         }
 
         /// @brief Return value or default if empty.
+        /// @tparam U Type of default value
+        /// @param default_value Fallback value
+        /// @return Stored value or default
         template <class U>
-        [[nodiscard]] constexpr T value_or(U&& default_value) const& noexcept {
-            return has_value_ ? storage_.value : T(static_cast<U&&>(default_value));
+        [[nodiscard]] constexpr T value_or(U&& default_value) const& noexcept(std::is_nothrow_copy_constructible_v<T> &&
+                                                                              std::is_nothrow_constructible_v<T, U>) {
+            return has_value_ ? storage_.value : T(std::forward<U>(default_value));
         }
 
         /// @brief Return value or default if empty (rvalue).
+        /// @tparam U Type of default value
+        /// @param default_value Fallback value
+        /// @return Stored value or default
         template <class U>
-        [[nodiscard]] constexpr T value_or(U&& default_value) && noexcept {
-            return has_value_ ? static_cast<T&&>(storage_.value) : T(static_cast<U&&>(default_value));
+        [[nodiscard]] constexpr T value_or(U&& default_value) && noexcept(std::is_nothrow_move_constructible_v<T> &&
+                                                                          std::is_nothrow_constructible_v<T, U>) {
+            return has_value_ ? std::move(storage_.value) : T(std::forward<U>(default_value));
         }
 
         /// @brief Return error or default if value is present.
+        /// @tparam U Type of default error
+        /// @param default_error Fallback error
+        /// @return Stored error or default
         template <class U>
-        [[nodiscard]] constexpr E error_or(U&& default_error) const& noexcept {
-            return !has_value_ ? storage_.error : E(static_cast<U&&>(default_error));
+        [[nodiscard]] constexpr E error_or(U&& default_error) const& noexcept(std::is_nothrow_copy_constructible_v<E> &&
+                                                                              std::is_nothrow_constructible_v<E, U>) {
+            return !has_value_ ? storage_.error : E(std::forward<U>(default_error));
         }
 
         /// @brief Return error or default if value is present (rvalue).
+        /// @tparam U Type of default error
+        /// @param default_error Fallback error
+        /// @return Stored error or default
         template <class U>
-        [[nodiscard]] constexpr E error_or(U&& default_error) && noexcept {
-            return !has_value_ ? static_cast<E&&>(storage_.error) : E(static_cast<U&&>(default_error));
+        [[nodiscard]] constexpr E error_or(U&& default_error) && noexcept(std::is_nothrow_move_constructible_v<E> &&
+                                                                          std::is_nothrow_constructible_v<E, U>) {
+            return !has_value_ ? std::move(storage_.error) : E(std::forward<U>(default_error));
         }
 
         /// @brief Emplace a new value.
+        /// @tparam Args Constructor argument types
+        /// @param args Arguments to forward to T constructor
+        /// @return Reference to emplaced value
         template <class... Args>
-        [[nodiscard]] constexpr T& emplace(Args&&... args) noexcept {
+        constexpr T& emplace(Args&&... args) noexcept(std::is_nothrow_constructible_v<T, Args...>) {
             destroy();
             has_value_ = true;
-            new (&storage_.value) T(static_cast<Args&&>(args)...);
+            new (&storage_.value) T(std::forward<Args>(args)...);
             return storage_.value;
+        }
+
+        /// @brief Assign a value explicitly.
+        /// @tparam U Type of value to assign
+        /// @param u Value to assign
+        template <class U>
+        constexpr void assign(U&& u) noexcept(std::is_nothrow_constructible_v<T, U> && std::is_nothrow_assignable_v<T&, U>) {
+            if (has_value_) {
+                storage_.value = std::forward<U>(u);
+            } else {
+                destroy();
+                has_value_ = true;
+                new (&storage_.value) T(std::forward<U>(u));
+            }
         }
     };
 
@@ -286,16 +342,18 @@ namespace cosmos::stl {
     template <class E>
     class Result<void, E> {
         static_assert(!std::is_reference_v<E>, "E must not be a reference type.");
+        static_assert(!std::is_void_v<E>, "E must not be void.");
 
         union Storage {
-            E error;
+            E error; ///< Stored error
 
             constexpr Storage() noexcept {}
             constexpr ~Storage() noexcept {}
         } storage_;
 
-        bool has_value_ = false;
+        bool has_value_ = false; ///< true if contains success
 
+        /// @brief Destroy currently held error.
         void destroy() noexcept {
             if (!has_value_) storage_.error.~E();
         }
@@ -313,28 +371,42 @@ namespace cosmos::stl {
         /// @brief Construct from rvalue Err.
         /// @param u The Err wrapper containing the error.
         constexpr Result(Err<E>&& u) : has_value_(false) { // NOLINT(*-explicit-constructor)
-            new (&storage_.error) E(static_cast<E&&>(u.error()));
+            new (&storage_.error) E(std::move(u.error()));
         }
 
         /// @brief Copy constructor.
+        /// @param o Other Result object.
         constexpr Result(const Result& o) : has_value_(o.has_value_) {
             if (!has_value_) new (&storage_.error) E(o.storage_.error);
         }
 
         /// @brief Move constructor.
+        /// @param o Other Result object to move from.
         constexpr Result(Result&& o) noexcept(std::is_nothrow_move_constructible_v<E>) : has_value_(o.has_value_) {
-            if (!has_value_) new (&storage_.error) E(static_cast<E&&>(o.storage_.error));
+            if (!has_value_) new (&storage_.error) E(std::move(o.storage_.error));
         }
 
-        ~Result() noexcept {
+        /// @brief Destructor.
+        ~Result() noexcept
+            requires(!std::is_trivially_destructible_v<E>)
+        {
             destroy();
         }
 
+        /// @brief Destructor (trivial specialization).
+        ~Result() noexcept
+            requires(std::is_trivially_destructible_v<E>)
+        = default;
+
         /// @brief Copy assignment.
+        /// @param o Other Result object.
+        /// @return *this
         constexpr Result& operator=(const Result& o) {
             if (this == &o) return *this;
             if (has_value_ && !o.has_value_) {
                 new (&storage_.error) E(o.storage_.error);
+            } else if (!has_value_ && o.has_value_) {
+                storage_.error.~E();
             } else if (!has_value_ && !o.has_value_) {
                 storage_.error = o.storage_.error;
             }
@@ -343,33 +415,65 @@ namespace cosmos::stl {
         }
 
         /// @brief Move assignment.
+        /// @param o Other Result object.
+        /// @return *this
         constexpr Result& operator=(Result&& o) noexcept(std::is_nothrow_move_constructible_v<E> && std::is_nothrow_move_assignable_v<E>) {
             if (this == &o) return *this;
             if (has_value_ && !o.has_value_) {
-                new (&storage_.error) E(static_cast<E&&>(o.storage_.error));
+                new (&storage_.error) E(std::move(o.storage_.error));
+            } else if (!has_value_ && o.has_value_) {
+                storage_.error.~E();
             } else if (!has_value_ && !o.has_value_) {
-                storage_.error = static_cast<E&&>(o.storage_.error);
+                storage_.error = std::move(o.storage_.error);
             }
             has_value_ = o.has_value_;
             return *this;
         }
 
+        /// @brief Check if contains a value.
+        /// @return true if success is stored
         [[nodiscard]] constexpr bool has_value() const noexcept {
             return has_value_;
         }
+
+        /// @brief Conversion to bool.
+        /// @return true if success is stored
         [[nodiscard]] constexpr explicit operator bool() const noexcept {
             return has_value_;
         }
 
+        /// @brief Access error (lvalue).
+        /// @pre has_value() == false
         [[nodiscard]] constexpr E& error() & noexcept {
             return storage_.error;
         }
+
+        /// @brief Access error (const lvalue).
+        /// @pre has_value() == false
         [[nodiscard]] constexpr const E& error() const& noexcept {
             return storage_.error;
         }
 
-        [[nodiscard]] constexpr E error_or(E&& default_error) const noexcept {
-            return has_value_ ? static_cast<E&&>(default_error) : storage_.error;
+        /// @brief Return error or default if value is present.
+        /// @tparam U Type of default error
+        /// @param default_error Fallback error
+        /// @return Stored error or default
+        template <class U>
+        [[nodiscard]] constexpr E error_or(U&& default_error) const noexcept(std::is_nothrow_constructible_v<E, U>) {
+            return has_value_ ? E(std::forward<U>(default_error)) : storage_.error;
+        }
+
+        /// @brief Assign an error explicitly.
+        /// @tparam U Type of error to assign
+        /// @param u Error to assign
+        template <class U>
+        constexpr void assign(U&& u) noexcept(std::is_nothrow_constructible_v<E, U> && std::is_nothrow_assignable_v<E&, U>) {
+            if (has_value_) {
+                has_value_ = false;
+                new (&storage_.error) E(std::forward<U>(u));
+            } else {
+                storage_.error = std::forward<U>(u);
+            }
         }
     };
 
