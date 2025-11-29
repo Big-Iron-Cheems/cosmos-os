@@ -109,7 +109,7 @@ namespace cosmos::vfs::ramfs {
         if (file->cursor + length >= node->file.data_capacity) {
             const auto new_capacity = utils::max(node->file.data_capacity * 2, file->cursor + length);
 
-            const auto new_data = static_cast<uint8_t*>(memory::heap::alloc(new_capacity));
+            const auto new_data = memory::heap::alloc_array<uint8_t>(new_capacity);
             if (new_data == nullptr) return 0;
 
             if (node->file.data != nullptr) {

@@ -1,4 +1,5 @@
 #include "limine.hpp"
+#include "memory/offsets.hpp"
 #include "serial.hpp"
 #include "utils.hpp"
 
@@ -43,56 +44,42 @@ namespace cosmos::limine {
     void init_framebuffer() {
         const auto limine_fb = framebuffer_request.response->framebuffers[0];
 
-        auto kernel_size = 0ul;
-
-        for (auto i = 0u; i < get_memory_range_count(); i++) {
-            const auto [type, address, length] = get_memory_range(i);
-
-            if (type == MemoryType::ExecutableAndModules) {
-                kernel_size = length;
-
-                break;
-            }
-        }
-
         fb = {
             .width = static_cast<uint32_t>(limine_fb->width),
             .height = static_cast<uint32_t>(limine_fb->height),
-            .pitch = static_cast<uint32_t>(limine_fb->pitch / 4),
-            .pixels = reinterpret_cast<void*>(utils::align(get_kernel_virt() + kernel_size, 4096ul * 512ul)),
+            .pitch = static_cast<uint32_t>(limine_fb->pitch) / 4,
+            .pixels = limine_fb->address,
         };
     }
 
-    bool init() {
+    void init() {
         if (!LIMINE_BASE_REVISION_SUPPORTED(base_revision)) {
-            serial::print("[limine] Base revision not supported\n");
-            return false;
+            utils::panic(nullptr, "[limine] Base revision not supported");
         }
 
         if (memmap_request.response == nullptr) {
-            serial::print("[limine] Memory ranges missing\n");
-            return false;
+            utils::panic(nullptr, "[limine] Memory ranges missing");
         }
 
         if (executable_address_request.response == nullptr) {
-            serial::print("[limine] Executable address missing\n");
-            return false;
+            utils::panic(nullptr, "[limine] Executable address missing");
         }
 
         if (hhdm_request.response == nullptr) {
-            serial::print("[limine] HHDM missing\n");
-            return false;
+            utils::panic(nullptr, "[limine] HHDM missing");
+        }
+
+        if (hhdm_request.response->offset != memory::virt::DIRECT_MAP) {
+            utils::panic(nullptr, "[limine] HHDM not the same as my DIRECT_MAP");
         }
 
         if (framebuffer_request.response == nullptr || framebuffer_request.response->framebuffer_count < 1) {
-            serial::print("[limine] Framebuffer missing\n");
-            return false;
+            utils::panic(nullptr, "[limine] Framebuffer missing");
         }
 
         init_framebuffer();
 
         serial::print("[limine] Initialized\n");
-        return true;
     }
 
     uint32_t get_memory_range_count() {
@@ -102,45 +89,57 @@ namespace cosmos::limine {
     MemoryRange get_memory_range(const uint32_t index) {
         const auto entry = memmap_request.response->entries[index];
 
-        auto range = MemoryRange{
-            .address = entry->base,
-            .size = entry->length,
-        };
+        MemoryType type;
 
         switch (entry->type) {
         case LIMINE_MEMMAP_USABLE:
-            range.type = MemoryType::Usable;
+            type = MemoryType::Usable;
             break;
         case LIMINE_MEMMAP_RESERVED:
-            range.type = MemoryType::Reserved;
+            type = MemoryType::Reserved;
             break;
         case LIMINE_MEMMAP_ACPI_RECLAIMABLE:
-            range.type = MemoryType::AcpiReclaimable;
+            type = MemoryType::AcpiReclaimable;
             break;
         case LIMINE_MEMMAP_ACPI_NVS:
-            range.type = MemoryType::AcpiNvs;
+            type = MemoryType::AcpiNvs;
             break;
         case LIMINE_MEMMAP_BAD_MEMORY:
-            range.type = MemoryType::BadMemory;
+            type = MemoryType::BadMemory;
             break;
         case LIMINE_MEMMAP_BOOTLOADER_RECLAIMABLE:
-            range.type = MemoryType::BootloaderReclaimable;
+            type = MemoryType::BootloaderReclaimable;
             break;
         case LIMINE_MEMMAP_EXECUTABLE_AND_MODULES:
-            range.type = MemoryType::ExecutableAndModules;
+            type = MemoryType::ExecutableAndModules;
             break;
         case LIMINE_MEMMAP_FRAMEBUFFER:
-            range.type = MemoryType::Framebuffer;
+            type = MemoryType::Framebuffer;
             break;
         case LIMINE_MEMMAP_ACPI_TABLES:
-            range.type = MemoryType::AcpiTables;
+            type = MemoryType::AcpiTables;
             break;
         default:
-            range.type = MemoryType::Reserved;
+            type = MemoryType::Reserved;
             break;
         }
 
-        return range;
+        auto start = entry->base;
+        auto end = entry->base + entry->length;
+
+        if (type == MemoryType::Usable) {
+            start = utils::align_up(start, 4096ul);
+            end = utils::align_down(end, 4096ul);
+        } else {
+            start = utils::align_down(start, 4096ul);
+            end = utils::align_up(end, 4096ul);
+        }
+
+        return {
+            .type = type,
+            .first_page = start / 4096ull,
+            .page_count = start >= end ? 0 : (end - start) / 4096ull,
+        };
     }
 
     uint64_t get_memory_size() {

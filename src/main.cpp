@@ -1,9 +1,11 @@
 #include "devices/framebuffer.hpp"
 #include "devices/pit.hpp"
 #include "devices/ps2kbd.hpp"
+#include "gdt.hpp"
 #include "interrupts/isr.hpp"
 #include "limine.hpp"
 #include "memory/heap.hpp"
+#include "memory/offsets.hpp"
 #include "memory/physical.hpp"
 #include "memory/virtual.hpp"
 #include "scheduler/scheduler.hpp"
@@ -34,14 +36,19 @@ void init() {
 
 extern "C" [[noreturn]]
 void main() {
+    asm volatile("cli" ::: "memory");
     serial::init();
+    limine::init();
 
-    if (!limine::init()) {
-        utils::halt();
-    }
-
+    gdt::init();
     isr::init();
+
     memory::phys::init();
+
+    uint64_t rsp;
+    asm volatile("mov %%rsp, %0" : "=r"(rsp));
+    rsp = memory::virt::DIRECT_MAP + memory::virt::get_phys(rsp);
+    asm volatile("mov %0, %%rsp" ::"ri"(rsp));
 
     const auto space = memory::virt::create();
     memory::virt::switch_to(space);

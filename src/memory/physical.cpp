@@ -1,7 +1,6 @@
 #include "physical.hpp"
 
 #include "limine.hpp"
-#include "serial.hpp"
 #include "utils.hpp"
 
 namespace cosmos::memory::phys {
@@ -13,7 +12,7 @@ namespace cosmos::memory::phys {
 
     void mark_page(const uint32_t index, const bool used) {
         uint64_t& entry = entries[index / 64u];
-        const uint64_t mask = 1u << (index % 64u);
+        const uint64_t mask = 1ull << (index % 64u);
 
         if (used) {
             entry |= mask;
@@ -22,7 +21,10 @@ namespace cosmos::memory::phys {
         }
     }
 
-    void mark_pages(const uint32_t first, const uint32_t count, const bool used) {
+    void mark_pages(const uint32_t first, uint32_t count, const bool used) {
+        if (first >= total_pages) return;
+        count = utils::min(count, total_pages - first);
+
         for (auto i = 0u; i < count; i++) {
             mark_page(first + i, used);
         }
@@ -36,51 +38,47 @@ namespace cosmos::memory::phys {
 
     void init() {
         // Calculate total memory size
-        uint64_t total_memory_size = 0u;
+        total_pages = 0;
 
         for (auto i = 0u; i < limine::get_memory_range_count(); i++) {
-            const auto [type, address, length] = limine::get_memory_range(i);
+            const auto [type, first_page, page_count] = limine::get_memory_range(i);
 
-            if (limine::memory_type_ram(type) && address + length > total_memory_size) {
-                total_memory_size = address + length;
+            if (limine::memory_type_ram(type) && first_page + page_count > total_pages) {
+                total_pages = first_page + page_count;
             }
         }
 
-        total_pages = utils::ceil_div(total_memory_size, 4096ul);
         entry_count = utils::ceil_div(total_pages, 64u);
 
         // Find usable range to store entries in
-        const uint32_t entries_page_count = utils::ceil_div(entry_count * 8u, 4096u);
+        const uint32_t entries_page_count = utils::ceil_div(entry_count * 8ul, 4096ul);
         uint32_t entries_page_index = 0xFFFFFFFF;
 
         for (auto i = 0u; i < limine::get_memory_range_count(); i++) {
-            const auto [type, address, length] = limine::get_memory_range(i);
+            const auto [type, first_page, page_count] = limine::get_memory_range(i);
 
-            if (type == limine::MemoryType::Usable && length / 4096ul >= entries_page_count) {
-                const uint64_t address_aligned = utils::align(address, 4096ul);
-
-                entries = reinterpret_cast<uint64_t*>(limine::get_hhdm() + address_aligned);
-                entries_page_index = address_aligned / 4096ul;
+            if (type == limine::MemoryType::Usable && first_page >= 1 && page_count >= entries_page_count) {
+                entries = reinterpret_cast<uint64_t*>(limine::get_hhdm() + first_page * 4096);
+                entries_page_index = first_page;
 
                 break;
             }
         }
 
         if (entries_page_index == 0xFFFFFFFF) {
-            serial::print("[memory] Failed to find enough memory to store physical memory bitmask\n");
-            utils::halt();
+            utils::panic(nullptr, "[memory] Failed to find enough memory to store physical memory bitmask");
         }
 
         // Mark all pages as used
-        utils::memset(entries, 0xFF, entry_count * 8);
+        utils::memset(entries, 0xFF, entry_count * 8ul);
         used_pages = total_pages;
 
         // Mark usable ranges as unused
         for (auto i = 0u; i < limine::get_memory_range_count(); i++) {
-            const auto [type, address, length] = limine::get_memory_range(i);
+            const auto [type, first_page, page_count] = limine::get_memory_range(i);
 
             if (type == limine::MemoryType::Usable) {
-                mark_pages(utils::ceil_div(address, 4096ul), length / 4096ul, false);
+                mark_pages(first_page, page_count, false);
             }
         }
 
@@ -109,7 +107,7 @@ namespace cosmos::memory::phys {
 
                 if (empty_count >= count) {
                     mark_pages(first_empty, count, true);
-                    return first_empty * 4096;
+                    return static_cast<uint64_t>(first_empty) * 4096ul;
                 }
 
                 entry >>= 1;

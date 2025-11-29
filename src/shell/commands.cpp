@@ -20,7 +20,7 @@ namespace cosmos::shell {
             const auto cwd = get_cwd();
             const auto len = vfs::check_abs_path(cwd);
             if (len == 0) return nullptr;
-            const auto out = static_cast<char*>(memory::heap::alloc(len + 1));
+            const auto out = memory::heap::alloc_array<char>(len + 1);
             utils::memcpy(out, cwd, len);
             out[len] = '\0';
             return out;
@@ -92,7 +92,7 @@ namespace cosmos::shell {
         const auto length = file->ops->seek(file, vfs::SeekType::End, 0);
         file->ops->seek(file, vfs::SeekType::Start, 0);
 
-        const auto str = static_cast<char*>(memory::heap::alloc(length + 1));
+        const auto str = memory::heap::alloc_array<char>(length + 1);
         file->ops->read(file, str, length);
         str[length] = '\0';
         vfs::close_file(file);

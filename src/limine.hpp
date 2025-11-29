@@ -27,8 +27,8 @@ namespace cosmos::limine {
 
     struct MemoryRange {
         MemoryType type;
-        uint64_t address;
-        uint64_t size;
+        uint64_t first_page;
+        uint64_t page_count;
     };
 
     struct Framebuffer {
@@ -38,7 +38,7 @@ namespace cosmos::limine {
         void* pixels;
     };
 
-    bool init();
+    void init();
 
     uint32_t get_memory_range_count();
     MemoryRange get_memory_range(uint32_t index);

@@ -95,26 +95,26 @@ namespace cosmos::memory::virt {
 
     // Space
 
-    static bool kernel_space_created = false;
+    static bool first_create = true;
+    static bool gb_pages_supported = false;
+
+    static bool switched_to_space = false;
     static uint64_t kernel_first_pml4_entry = 0;
     static uint64_t kernel_last_pml4_entry = 0;
 
     template <typename T>
     T* get_ptr_from_phys(const uint64_t phys) {
-        if (kernel_space_created) return reinterpret_cast<T*>(DIRECT_MAP + phys);
+        if (switched_to_space) return reinterpret_cast<T*>(DIRECT_MAP + phys);
         return reinterpret_cast<T*>(limine::get_hhdm() + phys);
     }
 
     bool map_kernel(const Space space) {
         for (auto i = 0u; i < limine::get_memory_range_count(); i++) {
-            const auto [type, address, length] = limine::get_memory_range(i);
+            const auto [type, first_page, page_count] = limine::get_memory_range(i);
 
             if (type == limine::MemoryType::ExecutableAndModules) {
                 constexpr auto virt = KERNEL / 4096ul;
-                const auto phys = address / 4096ul;
-                const auto count = utils::ceil_div(length, 4096ul);
-
-                return map_pages(space, virt, phys, count, false);
+                return map_pages(space, virt, first_page, page_count, false);
             }
         }
 
@@ -124,14 +124,11 @@ namespace cosmos::memory::virt {
 
     bool map_framebuffer(const Space space) {
         for (auto i = 0u; i < limine::get_memory_range_count(); i++) {
-            const auto [type, address, length] = limine::get_memory_range(i);
+            const auto [type, first_page, page_count] = limine::get_memory_range(i);
 
             if (type == limine::MemoryType::Framebuffer) {
                 constexpr auto virt = FRAMEBUFFER / 4096ul;
-                const auto phys = address / 4096ul;
-                const auto count = utils::ceil_div(length, 4096ul);
-
-                return map_pages(space, virt, phys, count, false);
+                return map_pages(space, virt, first_page, page_count, true);
             }
         }
 
@@ -139,15 +136,29 @@ namespace cosmos::memory::virt {
         return false;
     }
 
-    bool map_hhdm(const Space space) {
+    bool map_direct_map(const Space space) {
         constexpr auto virt = DIRECT_MAP / 4096ul;
-        constexpr auto phys = 0ul;
-        const auto count = phys::get_total_pages();
 
-        return map_pages(space, virt, phys, count, true);
+        for (auto i = 0u; i < limine::get_memory_range_count(); i++) {
+            const auto [type, first_page, page_count] = limine::get_memory_range(i);
+
+            if (limine::memory_type_ram(type)) {
+                if (!map_pages(space, virt + first_page, first_page, page_count, false)) return false;
+            }
+        }
+
+        return true;
     }
 
     Space create() {
+        if (first_create) {
+            uint32_t eax, ebx, ecx, edx;
+            utils::cpuid(0x80000001, &eax, &ebx, &ecx, &edx);
+            gb_pages_supported = (edx >> 26) & 1;
+
+            first_create = false;
+        }
+
         const auto space = phys::alloc_pages(1);
         if (space == 0) return 0;
 
@@ -160,12 +171,11 @@ namespace cosmos::memory::virt {
         return 0;                                                                                                                          \
     }
 
-        if (!kernel_space_created) {
+        if (!switched_to_space) {
             MAP(map_kernel)
             MAP(map_framebuffer)
-            MAP(map_hhdm)
+            MAP(map_direct_map)
 
-            kernel_space_created = true;
             kernel_first_pml4_entry = pml4[256];
             kernel_last_pml4_entry = pml4[511];
         } else {
@@ -263,7 +273,7 @@ namespace cosmos::memory::virt {
             if (pdp_table == nullptr) return false;
 
             // 1 gB
-            if (virt % (512 * 512) == 0 && phys % (512 * 512) == 0 && count >= (512 * 512)) {
+            if (gb_pages_supported && virt % (512 * 512) == 0 && phys % (512 * 512) == 0 && count >= (512 * 512)) {
                 pdp_table[addr.pdp] = ((phys * 4096) & DIRECT_PDP_ADDRESS_MASK) | FLAG_DIRECT | flags;
                 if (invalidate) asm volatile("invlpg (%0)" ::"r"(virt * 4096ul) : "memory");
 
@@ -306,6 +316,11 @@ namespace cosmos::memory::virt {
 
     void switch_to(Space space) {
         asm volatile("mov %0, %%cr3" ::"ri"(space));
+        switched_to_space = true;
+    }
+
+    bool switched() {
+        return switched_to_space;
     }
 
     uint64_t get_phys(const uint64_t virt) {

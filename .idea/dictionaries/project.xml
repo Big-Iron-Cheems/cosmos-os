@@ -6,6 +6,7 @@
       <w>limine</w>
       <w>memcpy</w>
       <w>memmap</w>
+      <w>notsys</w>
       <w>ramfs</w>
       <w>strdup</w>
       <w>virt</w>

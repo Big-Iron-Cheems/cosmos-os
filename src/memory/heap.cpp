@@ -76,7 +76,7 @@ namespace cosmos::memory::heap {
 
     void* alloc(const uint64_t size, const uint64_t alignment) {
 #define REGION_START(region) reinterpret_cast<uint64_t>(region + 1)
-#define CALC_PADDING(region) (utils::align(REGION_START(region), alignment) - REGION_START(region))
+#define CALC_PADDING(region) (utils::align_up(REGION_START(region), alignment) - REGION_START(region))
 #define CHECK_REGION(region) (!region->used && region->size >= size + CALC_PADDING(region))
 
         auto current = head;

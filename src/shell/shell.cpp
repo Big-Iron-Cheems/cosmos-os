@@ -16,11 +16,12 @@
 
 namespace cosmos::shell {
     static vfs::File* fbdev;
-    static uint32_t width;
-    static uint32_t height;
+    static uint32_t pitch;
+    static uint32_t columns;
+    static uint32_t rows;
 
-    static uint32_t cursor_x = 0;
-    static uint32_t cursor_y = 0;
+    static uint32_t row = 0;
+    static uint32_t column = 0;
     static bool cursor_visible = false;
 
     static Color fg_color;
@@ -47,7 +48,7 @@ namespace cosmos::shell {
         const auto len = vfs::check_abs_path(absolute_path);
         if (len == 0) return false;
 
-        auto* copy = static_cast<char*>(memory::heap::alloc(len + 1));
+        auto* copy = memory::heap::alloc_array<char>(len + 1);
         utils::memcpy(copy, absolute_path, len);
         copy[len] = '\0';
 
@@ -132,8 +133,9 @@ namespace cosmos::shell {
         const auto fb = limine::get_framebuffer();
 
         fbdev = vfs::open_file("/dev/framebuffer", vfs::Mode::ReadWrite);
-        width = fb.width / FONT_WIDTH;
-        height = fb.height / FONT_HEIGHT;
+        pitch = fb.pitch;
+        columns = fb.width / FONT_WIDTH;
+        rows = fb.height / FONT_HEIGHT;
 
         fg_color = WHITE;
 
@@ -171,66 +173,64 @@ namespace cosmos::shell {
     void print(const char ch) {
         const auto glyph = get_font_glyph(ch);
 
-        const auto base_x = cursor_x * FONT_WIDTH;
-        const auto base_y = cursor_y * FONT_HEIGHT;
-        const auto line_size = width * FONT_WIDTH;
+        const auto base_x = row * FONT_WIDTH;
+        const auto base_y = column * FONT_HEIGHT;
 
         const auto color = fg_color.pack();
 
         for (auto y = 0u; y < FONT_HEIGHT; y++) {
-            uint32_t row[FONT_WIDTH];
+            uint32_t line_pixels[FONT_WIDTH];
 
             for (auto x = 0u; x < FONT_WIDTH; x++) {
-                row[x] = glyph.is_set(x, y) ? color : 0xFF000000;
+                line_pixels[x] = glyph.is_set(x, y) ? color : 0xFF000000;
             }
 
-            fbdev->ops->seek(fbdev, vfs::SeekType::Start, ((base_y + y) * line_size + base_x) * 4);
-            fbdev->ops->write(fbdev, row, FONT_WIDTH * 4);
+            fbdev->ops->seek(fbdev, vfs::SeekType::Start, ((base_y + y) * pitch + base_x) * 4);
+            fbdev->ops->write(fbdev, line_pixels, FONT_WIDTH * 4);
         }
     }
 
     void fill_cell(const uint32_t pixel) {
-        const auto base_x = cursor_x * FONT_WIDTH;
-        const auto base_y = cursor_y * FONT_HEIGHT;
-        const auto line_size = width * FONT_WIDTH;
+        const auto base_x = row * FONT_WIDTH;
+        const auto base_y = column * FONT_HEIGHT;
 
-        uint32_t row[FONT_WIDTH];
+        uint32_t line_pixels[FONT_WIDTH];
 
         for (auto x = 0u; x < FONT_WIDTH; x++) {
-            row[x] = pixel;
+            line_pixels[x] = pixel;
         }
 
         for (auto y = 0u; y < FONT_HEIGHT; y++) {
-            fbdev->ops->seek(fbdev, vfs::SeekType::Start, ((base_y + y) * line_size + base_x) * 4);
-            fbdev->ops->write(fbdev, row, FONT_WIDTH * 4);
+            fbdev->ops->seek(fbdev, vfs::SeekType::Start, ((base_y + y) * pitch + base_x) * 4);
+            fbdev->ops->write(fbdev, line_pixels, FONT_WIDTH * 4);
         }
     }
 
     void new_line() {
-        cursor_y++;
+        column++;
 
-        if (cursor_y >= height) {
-            const auto row_size = FONT_HEIGHT * width * FONT_WIDTH * 4;
-            const auto row = memory::heap::alloc_array<uint8_t>(row_size);
+        if (column >= rows) {
+            const auto row_size = FONT_HEIGHT * pitch * 4;
+            const auto row_pixels = memory::heap::alloc_array<uint8_t>(row_size);
 
-            for (auto y = 1u; y < height; y++) {
+            for (auto y = 1u; y < rows; y++) {
                 fbdev->ops->seek(fbdev, vfs::SeekType::Start, y * row_size);
-                fbdev->ops->read(fbdev, row, row_size);
+                fbdev->ops->read(fbdev, row_pixels, row_size);
 
                 fbdev->ops->seek(fbdev, vfs::SeekType::Start, (y - 1) * row_size);
-                fbdev->ops->write(fbdev, row, row_size);
+                fbdev->ops->write(fbdev, row_pixels, row_size);
             }
 
-            memory::heap::free(row);
-            cursor_y--;
+            memory::heap::free(row_pixels);
+            column--;
 
-            for (auto x = 0u; x < width; x++) {
-                cursor_x = x;
+            for (auto x = 0u; x < columns; x++) {
+                row = x;
                 fill_cell(0xFF000000);
             }
         }
 
-        cursor_x = 0;
+        row = 0;
     }
 
     void set_color(const Color color) {
@@ -246,14 +246,15 @@ namespace cosmos::shell {
             } else {
                 print(ch);
 
-                cursor_x++;
-                if (cursor_x >= width) new_line();
+                row++;
+                if (row >= columns) new_line();
             }
 
             str++;
         }
     }
 
+    // ReSharper disable once CppParameterMayBeConst
     void printf(const char* fmt, va_list args) {
         static char buffer[256];
         npf_vsnprintf(buffer, 256, fmt, args);
@@ -336,7 +337,7 @@ namespace cosmos::shell {
                     if (cursor_visible) fill_cell(0xFF000000);
 
                     size--;
-                    cursor_x--;
+                    row--;
 
                     fill_cell(0xFF000000);
                 }

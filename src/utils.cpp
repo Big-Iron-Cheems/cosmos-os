@@ -1,17 +1,116 @@
 #include "utils.hpp"
 
 #include "memory/heap.hpp"
+#include "nanoprintf.h"
 #include "serial.hpp"
+#include "shell/display.hpp"
+
+#include <cstdarg>
 
 namespace cosmos::utils {
+    void panic_print_regs(const char* r0_name, const uint64_t r0, const char* r1_name, const uint64_t r1, const char* r2_name,
+                          const uint64_t r2) {
+        display::printf("  %s=", r0_name);
+        display::printf(shell::GRAY, "0x%016llX", r0);
+
+        display::printf(" %s=", r1_name);
+        display::printf(shell::GRAY, "0x%016llX", r1);
+
+        display::printf(" %s=", r2_name);
+        display::printf(shell::GRAY, "0x%016llX\n", r2);
+    }
+
+    struct Frame {
+        Frame* previous;
+        uint64_t return_address;
+    };
+
+    bool is_address_safe(const uint64_t addr) {
+        // Basic check: must be non-null and likely in higher half for kernel
+        if (addr == 0) return false;
+        // Check alignment (stack frames are 8-byte aligned)
+        if (addr & 0x7) return false;
+
+        // Check if canonical (simplified for example)
+        return (addr <= 0x00007FFFFFFFFFFF) || (addr >= 0xFFFF800000000000);
+    }
+
+    void panic_print_stack_frame(const uint64_t index, const uint64_t address) {
+        display::printf("  Frame ");
+        display::printf(shell::GRAY, "%d", index);
+        display::printf(": ");
+        display::printf(shell::GRAY, "0x%016llX\n", address);
+    }
+
+    void panic_print_stack_trace(uint64_t rbp) {
+        auto frame = reinterpret_cast<Frame*>(rbp);
+        if (frame == nullptr) asm volatile("mov %%rbp, %0" : "=r"(frame));
+
+        const auto offset = rbp == 0 ? 0 : 1;
+
+        for (auto i = 0; frame != nullptr && i < 32; i++) {
+            if (!is_address_safe(reinterpret_cast<uint64_t>(frame))) {
+                break;
+            }
+
+            if (frame->return_address != 0) {
+                panic_print_stack_frame(i + offset, frame->return_address - 1);
+            }
+
+            frame = frame->previous;
+        }
+    }
+
+    void panic(const isr::InterruptInfo* info, const char* fmt, ...) {
+        asm volatile("cli" ::: "memory");
+
+        va_list args;
+        va_start(args, fmt);
+        char buffer[256];
+        npf_vsnprintf(buffer, 256 - 1, fmt, args);
+        va_end(args);
+
+        display::init();
+        display::printf(" --- KERNEL PANIC ---\n");
+        display::printf("  %s (", buffer);
+        display::printf(shell::GRAY, "%d", info->interrupt);
+        display::printf(") - ");
+        display::printf(shell::GRAY, "%d\n", info->error);
+        display::printf("\n");
+
+        if (info != nullptr) {
+            display::printf(" --- REGISTERS ---\n");
+            panic_print_regs("RAX", info->rax, "RBX", info->rbx, "RCX", info->rcx);
+            panic_print_regs("RDX", info->rdx, "RSI", info->rsi, "RDI", info->rdi);
+            panic_print_regs("R8 ", info->r8, "R9 ", info->r9, "R10", info->r10);
+            panic_print_regs("R11", info->r11, "R12", info->r12, "R13", info->r13);
+            panic_print_regs("R14", info->r14, "R15", info->r15, "RBP", info->rbp);
+            display::printf("\n");
+
+            display::printf(" --- STACK TRACE ---\n");
+            panic_print_stack_frame(0, info->iret_rip);
+        } else {
+            display::printf(" --- STACK TRACE ---\n");
+        }
+
+        panic_print_stack_trace(info != nullptr ? info->rbp : 0);
+        display::printf("\n");
+
+        halt();
+    }
+
     void halt() {
         serial::print("[cosmos] System halted\n");
 
-        asm volatile("cli");
+        asm volatile("cli" ::: "memory");
 
         for (;;) {
-            asm volatile("hlt");
+            asm volatile("hlt" ::: "memory");
         }
+    }
+
+    void cpuid(uint32_t arg, uint32_t* eax, uint32_t* ebx, uint32_t* ecx, uint32_t* edx) { // NOLINT(*-non-const-parameter)
+        asm volatile("cpuid" : "=a"(*eax), "=b"(*ebx), "=c"(*ecx), "=d"(*edx) : "a"(arg));
     }
 
     void memset(void* dst, const uint8_t value, const std::size_t size) {
@@ -58,7 +157,7 @@ namespace cosmos::utils {
     }
 
     char* strdup(const char* str, const uint32_t str_length) {
-        const auto dup = static_cast<char*>(memory::heap::alloc(str_length + 1));
+        const auto dup = memory::heap::alloc_array<char>(str_length + 1);
 
         memcpy(dup, str, str_length);
         dup[str_length] = '\0';

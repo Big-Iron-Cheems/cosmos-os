@@ -132,8 +132,7 @@ namespace cosmos::scheduler {
         for (;;) {
             if (current->state == State::Exited) {
                 if (processes.single_item()) {
-                    serial::print("[scheduler] All processes exited, stopping\n");
-                    utils::halt();
+                    utils::panic(nullptr, "[scheduler] All processes exited, stopping");
                 }
 
                 if (*current != old_process) {

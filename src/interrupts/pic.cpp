@@ -67,7 +67,7 @@ namespace cosmos::pic {
     void set(const uint8_t num, const uint64_t handler, const uint8_t flags) {
         entries[num] = {
             .offset_1 = static_cast<uint16_t>(handler),
-            .selector = 40, // GDT - 64-bit code descriptor
+            .selector = 8, // GDT - 64-bit code descriptor
             .ist = 0,
             .flags = flags,
             .offset_2 = static_cast<uint16_t>(handler >> 16),

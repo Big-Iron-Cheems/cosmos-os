@@ -41,8 +41,7 @@ namespace cosmos::devices::ps2kbd {
             if ((utils::byte_in(STATUS) & 0b10) == 0) return;
         }
 
-        serial::printf("[ps2kbd] Failed to send data\n");
-        utils::halt();
+        utils::panic(nullptr, "[ps2kbd] Failed to send data");
     }
 
     void send_controller_cmd(const uint8_t cmd) {
@@ -67,8 +66,7 @@ namespace cosmos::devices::ps2kbd {
             }
         }
 
-        serial::printf("[ps2kbd] Failed to receive data\n");
-        utils::halt();
+        utils::panic(nullptr, "[ps2kbd] Failed to receive data");
     }
 
     void send_device_cmd(const uint8_t cmd) {
@@ -83,8 +81,7 @@ namespace cosmos::devices::ps2kbd {
 
             if (response == 0xFE) {
                 if (i >= 8) {
-                    serial::printf("[ps2kbd] Failed to receive response\n");
-                    utils::halt();
+                    utils::panic(nullptr, "[ps2kbd] Failed to receive response");
                 }
 
                 wait_send();
@@ -215,8 +212,7 @@ namespace cosmos::devices::ps2kbd {
         const auto self_test_response = recv_data();
 
         if (self_test_response != 0x55) {
-            serial::printf("[ps2kbd] Controller self test failed, 0x%X\n", self_test_response);
-            utils::halt();
+            utils::panic(nullptr, "[ps2kbd] Controller self test failed, 0x%X\n", self_test_response);
         }
 
         send_controller_cmd(0x60, config.raw);
@@ -226,8 +222,7 @@ namespace cosmos::devices::ps2kbd {
         const auto test_response = recv_data();
 
         if (test_response != 0x00) {
-            serial::printf("[ps2kbd] First port test failed, 0x%X\n", test_response);
-            utils::halt();
+            utils::panic(nullptr, "[ps2kbd] First port test failed, 0x%X\n", test_response);
         }
 
         // Enable first port
@@ -238,8 +233,7 @@ namespace cosmos::devices::ps2kbd {
         const auto reset_response = recv_data();
 
         if (reset_response != 0xAA) {
-            serial::printf("[ps2kbd] Failed to reset keyboard, 0x%X\n", reset_response);
-            utils::halt();
+            utils::panic(nullptr, "[ps2kbd] Failed to reset keyboard, 0x%X\n", reset_response);
         }
 
         // Enable interrupts for first port

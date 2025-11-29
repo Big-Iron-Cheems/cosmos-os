@@ -1,10 +1,17 @@
 #pragma once
 
+#include "interrupts/info.hpp"
+
 #include <cstdint>
 
 namespace cosmos::utils {
     [[noreturn]]
+    void panic(const isr::InterruptInfo* info, const char* fmt, ...);
+
+    [[noreturn]]
     void halt();
+
+    void cpuid(uint32_t arg, uint32_t* eax, uint32_t* ebx, uint32_t* ecx, uint32_t* edx);
 
     void memset(void* dst, uint8_t value, std::size_t size);
     void memcpy(void* dst, const void* src, std::size_t size);
@@ -35,8 +42,13 @@ namespace cosmos::utils {
     }
 
     template <typename T>
-    T align(T value, T alignment) {
+    T align_up(T value, T alignment) {
         return (value + (alignment - 1)) & ~(alignment - 1);
+    }
+
+    template <typename T>
+    T align_down(T value, T alignment) {
+        return value & ~(alignment - 1);
     }
 
     // Byte

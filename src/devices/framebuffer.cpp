@@ -9,7 +9,7 @@
 namespace cosmos::devices::framebuffer {
     uint64_t fb_size() {
         const auto fb = limine::get_framebuffer();
-        return fb.width * fb.height * 4;
+        return fb.height * fb.pitch * 4;
     }
 
     uint64_t fb_seek(vfs::File* file, const vfs::SeekType type, const int64_t offset) {

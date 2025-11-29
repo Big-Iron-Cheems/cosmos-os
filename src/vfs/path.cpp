@@ -106,7 +106,7 @@ namespace cosmos::vfs {
             const auto len = check_abs_path(cwd);
             if (len == 0) return nullptr;
 
-            const auto out = static_cast<char*>(memory::heap::alloc(len + 1));
+            const auto out = memory::heap::alloc_array<char>(len + 1);
             utils::memcpy(out, cwd, len);
             out[len] = '\0';
             return out;
@@ -117,7 +117,7 @@ namespace cosmos::vfs {
             const auto len = check_abs_path(trimmed);
             if (len == 0) return nullptr;
 
-            const auto out = static_cast<char*>(memory::heap::alloc(len + 1));
+            const auto out = memory::heap::alloc_array<char>(len + 1);
             utils::memcpy(out, trimmed, len);
             out[len] = '\0';
             return out;
@@ -132,14 +132,14 @@ namespace cosmos::vfs {
             path_len++;
 
         const auto joined_len = cwd_len + 1 + path_len + 1;
-        const auto joined = static_cast<char*>(memory::heap::alloc(joined_len));
+        const auto joined = memory::heap::alloc_array<char>(joined_len);
 
         utils::memcpy(joined, cwd, cwd_len);
         joined[cwd_len] = '/';
         utils::memcpy(&joined[cwd_len + 1], trimmed, path_len);
         joined[cwd_len + 1 + path_len] = '\0';
 
-        const auto segments = static_cast<char*>(memory::heap::alloc(joined_len));
+        const auto segments = memory::heap::alloc_array<char>(joined_len);
         uint32_t seg_len = 0; // current length of the normalized path buffer
 
         if (auto it = iterate_path_entries(joined); it.next()) {
@@ -174,7 +174,7 @@ namespace cosmos::vfs {
         }
 
         if (seg_len == 0) {
-            const auto out = static_cast<char*>(memory::heap::alloc(2));
+            const auto out = memory::heap::alloc_array<char>(2);
             out[0] = '/';
             out[1] = '\0';
             memory::heap::free(joined);
@@ -184,7 +184,7 @@ namespace cosmos::vfs {
 
         // segments currently holds the path without leading '/'
         const auto out_len = seg_len + 1;
-        const auto out = static_cast<char*>(memory::heap::alloc(out_len + 1));
+        const auto out = memory::heap::alloc_array<char>(out_len + 1);
         out[0] = '/';
         utils::memcpy(&out[1], segments, seg_len);
         out[out_len] = '\0';

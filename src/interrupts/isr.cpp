@@ -65,6 +65,9 @@ namespace cosmos::isr {
     /// Naked common ISR routine. RSP points to saved r15 (top of saved registers).
     extern "C" __attribute__((naked)) void isr_common() {
         asm volatile(R"(
+        # 1. Clear Direction Flag
+        cld
+
         # Preserve base pointer and set new frame
         push %rbp
         mov %rsp, %rbp
@@ -156,7 +159,7 @@ namespace cosmos::isr {
     ISR_ERROR_CODE(14)
     ISR_NO_ERROR_CODE(15)
     ISR_NO_ERROR_CODE(16)
-    ISR_NO_ERROR_CODE(17)
+    ISR_ERROR_CODE(17)
     ISR_NO_ERROR_CODE(18)
     ISR_NO_ERROR_CODE(19)
     ISR_NO_ERROR_CODE(20)
@@ -169,7 +172,7 @@ namespace cosmos::isr {
     ISR_NO_ERROR_CODE(27)
     ISR_NO_ERROR_CODE(28)
     ISR_NO_ERROR_CODE(29)
-    ISR_NO_ERROR_CODE(30)
+    ISR_ERROR_CODE(30)
     ISR_NO_ERROR_CODE(31)
 
     // Generate IRQ stubs (32..47)
@@ -313,22 +316,24 @@ namespace cosmos::isr {
 
         // Exceptions (0..31) -> panic
         if (info->interrupt < 32) {
-            serial::print("[cosmos] KERNEL PANIC\n");
-            const char* name = "Unknown";
+            auto name = "Unknown";
+
             if (info->interrupt < (sizeof(EXCEPTIONS) / sizeof(EXCEPTIONS[0]))) {
                 name = EXCEPTIONS[info->interrupt];
             }
-            serial::printf("[cosmos]     %s\n", name);
-            utils::halt();
+
+            utils::panic(info, name);
         }
 
         // IRQs (32..47)
         if (info->interrupt < 48) {
             const auto irq = static_cast<uint8_t>(info->interrupt - 32);
             const auto handler = handlers[irq];
+
             if (handler) {
                 handler(info);
             }
+
             pic::end_irq(irq);
         }
     }

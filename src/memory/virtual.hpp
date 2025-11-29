@@ -30,6 +30,7 @@ namespace cosmos::memory::virt {
     bool map_pages(Space space, uint64_t virt, uint64_t phys, uint64_t count, bool cache_disabled);
 
     void switch_to(Space space);
+    bool switched();
 
     uint64_t get_phys(uint64_t virt);
 } // namespace cosmos::memory::virt
