@@ -65,7 +65,10 @@ namespace cosmos::devices::keyboard {
                 }
             }
 
-            if (!found) return 0;
+            if (!found) {
+                asm volatile("sti" ::: "memory");
+                return 0;
+            }
 
             const auto event = scheduler::create_event(event_destroy, index);
             event_handles[index] = event;
