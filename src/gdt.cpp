@@ -1,5 +1,7 @@
 #include "gdt.hpp"
 
+#include "log/log.hpp"
+
 #include <cstdint>
 
 namespace cosmos::gdt {
@@ -74,5 +76,7 @@ namespace cosmos::gdt {
             movw %%ax, %%ss
         )" ::
                          : "memory");
+
+        INFO("Switch GDT");
     }
 } // namespace cosmos::gdt

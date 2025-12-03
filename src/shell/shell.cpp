@@ -123,6 +123,8 @@ namespace cosmos::shell {
         print(WHITE, " > ");
     }
 
+    void fill_cell(uint32_t pixel);
+
     void run() {
         const auto fb = limine::get_framebuffer();
 
@@ -135,7 +137,21 @@ namespace cosmos::shell {
 
         cursor_blink_event = devices::pit::create_timer(500);
 
-        // initialize cwd to root
+        // Clear screen
+        const auto line_pixels = memory::heap::alloc_array<uint32_t>(pitch);
+
+        for (auto x = 0u; x < fb.width; x++) {
+            line_pixels[x] = 0xFF000000;
+        }
+
+        for (auto y = 0u; y < fb.height; y++) {
+            fbdev->ops->seek(fbdev, vfs::SeekType::Start, y * pitch * 4);
+            fbdev->ops->write(fbdev, line_pixels, pitch * 4);
+        }
+
+        memory::heap::free(line_pixels);
+
+        // Initialize cwd to root
         cwd = const_cast<char*>("/");
         cwd_heap_allocated = false;
 

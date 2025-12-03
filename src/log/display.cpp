@@ -1,15 +1,16 @@
 #include "display.hpp"
 
-#include "font.hpp"
 #include "limine.hpp"
 #include "memory/offsets.hpp"
 #include "memory/virtual.hpp"
 #include "nanoprintf.h"
+#include "shell/font.hpp"
 #include "utils.hpp"
 
+#include <cstdarg>
 #include <cstdint>
 
-namespace cosmos::display {
+namespace cosmos::log::display {
     static uint32_t width;
     static uint32_t height;
     static uint32_t pitch;
@@ -88,12 +89,10 @@ namespace cosmos::display {
     }
 
     // ReSharper disable once CppParameterMayBeConst
-    void printf(const shell::Color color, const char* fmt, va_list args) {
-        char buffer[256];
-        const auto length = npf_vsnprintf(buffer, 256, fmt, args);
-
-        for (auto i = 0; i < length; i++) {
-            print(color, buffer[i]);
+    void print(const shell::Color color, const char* str) {
+        while (*str != '\0') {
+            print(color, *str);
+            str++;
         }
 
         if (do_delay) {
@@ -102,4 +101,15 @@ namespace cosmos::display {
             }
         }
     }
-} // namespace cosmos::display
+
+    void printf(const shell::Color color, const char* fmt, ...) {
+        static char buffer[256];
+
+        va_list args;
+        va_start(args, fmt);
+        npf_snprintf(buffer, 256, fmt, args);
+        va_end(args);
+
+        print(color, buffer);
+    }
+} // namespace cosmos::log::display

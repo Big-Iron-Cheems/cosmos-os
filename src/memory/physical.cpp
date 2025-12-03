@@ -1,6 +1,7 @@
 #include "physical.hpp"
 
 #include "limine.hpp"
+#include "log/log.hpp"
 #include "utils.hpp"
 
 namespace cosmos::memory::phys {
@@ -84,6 +85,8 @@ namespace cosmos::memory::phys {
 
         // Mark entries bitmask as used
         mark_pages(entries_page_index, entries_page_count, true);
+
+        INFO("Initialized PMM with %d pages, %d mB", total_pages, static_cast<uint64_t>(total_pages) * 4096ull / 1024ull / 1024ull);
     }
 
     uint64_t alloc_pages(const uint32_t count) {

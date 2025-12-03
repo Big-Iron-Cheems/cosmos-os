@@ -21,4 +21,5 @@ namespace cosmos::shell {
     constexpr Color BLUE = { 0, 0, 150 };
     constexpr Color CYAN = { 0, 180, 180 };
     constexpr Color DARK_CYAN = { 0, 100, 100 };
+    constexpr Color YELLOW = { 255, 255, 0 };
 } // namespace cosmos::shell

@@ -1,9 +1,9 @@
 #include "virtual.hpp"
 
 #include "limine.hpp"
+#include "log/log.hpp"
 #include "offsets.hpp"
 #include "physical.hpp"
-#include "serial.hpp"
 #include "utils.hpp"
 
 namespace cosmos::memory::virt {
@@ -118,7 +118,7 @@ namespace cosmos::memory::virt {
             }
         }
 
-        serial::print("[mem - virt] Failed to find kernel memory range\n");
+        ERROR("Failed to find kernel memory range");
         return false;
     }
 
@@ -132,7 +132,7 @@ namespace cosmos::memory::virt {
             }
         }
 
-        serial::print("[mem - virt] Failed to find framebuffer memory range\n");
+        ERROR("Failed tORo find framebuffer memory range");
         return false;
     }
 

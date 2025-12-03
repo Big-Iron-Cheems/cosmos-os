@@ -1,23 +1,23 @@
 #include "utils.hpp"
 
+#include "log/display.hpp"
+#include "log/log.hpp"
 #include "memory/heap.hpp"
 #include "nanoprintf.h"
-#include "serial.hpp"
-#include "shell/display.hpp"
 
 #include <cstdarg>
 
 namespace cosmos::utils {
     void panic_print_regs(const char* r0_name, const uint64_t r0, const char* r1_name, const uint64_t r1, const char* r2_name,
                           const uint64_t r2) {
-        display::printf("  %s=", r0_name);
-        display::printf(shell::GRAY, "0x%016llX", r0);
+        log::display::printf(shell::WHITE, "  %s=", r0_name);
+        log::display::printf(shell::GRAY, "0x%016llX", r0);
 
-        display::printf(" %s=", r1_name);
-        display::printf(shell::GRAY, "0x%016llX", r1);
+        log::display::printf(shell::WHITE, " %s=", r1_name);
+        log::display::printf(shell::GRAY, "0x%016llX", r1);
 
-        display::printf(" %s=", r2_name);
-        display::printf(shell::GRAY, "0x%016llX\n", r2);
+        log::display::printf(shell::WHITE, " %s=", r2_name);
+        log::display::printf(shell::GRAY, "0x%016llX\n", r2);
     }
 
     struct Frame {
@@ -36,10 +36,10 @@ namespace cosmos::utils {
     }
 
     void panic_print_stack_frame(const uint64_t index, const uint64_t address) {
-        display::printf("  Frame ");
-        display::printf(shell::GRAY, "%d", index);
-        display::printf(": ");
-        display::printf(shell::GRAY, "0x%016llX\n", address);
+        log::display::printf(shell::WHITE, "  Frame ");
+        log::display::printf(shell::GRAY, "%d", index);
+        log::display::printf(shell::WHITE, ": ");
+        log::display::printf(shell::GRAY, "0x%016llX\n", address);
     }
 
     void panic_print_stack_trace(uint64_t rbp) {
@@ -70,37 +70,37 @@ namespace cosmos::utils {
         npf_vsnprintf(buffer, 256 - 1, fmt, args);
         va_end(args);
 
-        display::init();
-        display::printf(" --- KERNEL PANIC ---\n");
-        display::printf("  %s (", buffer);
-        display::printf(shell::GRAY, "%d", info->interrupt);
-        display::printf(") - ");
-        display::printf(shell::GRAY, "%d\n", info->error);
-        display::printf("\n");
+        log::enable_display(false);
+        log::display::printf(shell::WHITE, " --- KERNEL PANIC ---\n");
+        log::display::printf(shell::WHITE, "  %s (", buffer);
+        log::display::printf(shell::GRAY, "%d", info->interrupt);
+        log::display::printf(shell::WHITE, ") - ");
+        log::display::printf(shell::GRAY, "%d\n", info->error);
+        log::display::printf(shell::WHITE, "\n");
 
         if (info != nullptr) {
-            display::printf(" --- REGISTERS ---\n");
+            log::display::printf(shell::WHITE, " --- REGISTERS ---\n");
             panic_print_regs("RAX", info->rax, "RBX", info->rbx, "RCX", info->rcx);
             panic_print_regs("RDX", info->rdx, "RSI", info->rsi, "RDI", info->rdi);
             panic_print_regs("R8 ", info->r8, "R9 ", info->r9, "R10", info->r10);
             panic_print_regs("R11", info->r11, "R12", info->r12, "R13", info->r13);
             panic_print_regs("R14", info->r14, "R15", info->r15, "RBP", info->rbp);
-            display::printf("\n");
+            log::display::printf(shell::WHITE, "\n");
 
-            display::printf(" --- STACK TRACE ---\n");
+            log::display::printf(shell::WHITE, " --- STACK TRACE ---\n");
             panic_print_stack_frame(0, info->iret_rip);
         } else {
-            display::printf(" --- STACK TRACE ---\n");
+            log::display::printf(shell::WHITE, " --- STACK TRACE ---\n");
         }
 
         panic_print_stack_trace(info != nullptr ? info->rbp : 0);
-        display::printf("\n");
+        log::display::printf(shell::WHITE, "\n");
 
         halt();
     }
 
     void halt() {
-        serial::print("[cosmos] System halted\n");
+        WARN("System halted");
 
         asm volatile("cli" ::: "memory");
 

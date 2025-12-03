@@ -14,6 +14,9 @@ executable(
         'src/nanoprintf.cpp',
         'src/serial.cpp',
         'src/gdt.cpp',
+        'src/log/display.cpp',
+        'src/log/log.cpp',
+        'src/log/devfs.cpp',
         'src/interrupts/pic.cpp',
         'src/interrupts/isr.cpp',
         'src/memory/physical.cpp',
@@ -32,7 +35,6 @@ executable(
         'src/shell/font.cpp',
         'src/shell/commands.cpp',
         'src/shell/shell.cpp',
-        'src/shell/display.cpp',
         'src/main.cpp'
     ],
     include_directories: include_directories(

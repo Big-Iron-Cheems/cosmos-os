@@ -2,7 +2,7 @@
 
 #include "interrupts/isr.hpp"
 #include "keyboard.hpp"
-#include "serial.hpp"
+#include "log/log.hpp"
 #include "utils.hpp"
 
 namespace cosmos::devices::ps2kbd {
@@ -91,7 +91,7 @@ namespace cosmos::devices::ps2kbd {
                 continue;
             }
 
-            serial::printf("[ps2kbd] Invalid response to a device command, 0x%X\n", response);
+            WARN("Invalid response to a device command, 0x%X", response);
         }
     }
 

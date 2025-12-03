@@ -5,6 +5,8 @@
 #include "gdt.hpp"
 #include "interrupts/isr.hpp"
 #include "limine.hpp"
+#include "log/devfs.hpp"
+#include "log/log.hpp"
 #include "memory/heap.hpp"
 #include "memory/offsets.hpp"
 #include "memory/physical.hpp"
@@ -29,11 +31,13 @@ void init() {
     const auto devfs = vfs::mount("/dev");
     vfs::devfs::create(devfs);
 
+    log::init_devfs(devfs);
     devices::framebuffer::init(devfs);
     devices::keyboard::init(devfs);
 
-    serial::printf("[cosmos] %s\n", "Initialized");
+    INFO("Initialized");
 
+    log::disable_display();
     scheduler::create_process(shell::run);
 }
 
@@ -42,6 +46,9 @@ void main() {
     asm volatile("cli" ::: "memory");
     serial::init();
     limine::init();
+
+    log::enable_display();
+    INFO("Starting");
 
     gdt::init();
     isr::init();
@@ -55,6 +62,7 @@ void main() {
 
     const auto space = memory::virt::create();
     memory::virt::switch_to(space);
+    log::enable_paging();
 
     memory::heap::init();
 

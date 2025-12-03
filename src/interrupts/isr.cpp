@@ -1,7 +1,7 @@
 #include "isr.hpp"
 
+#include "log/log.hpp"
 #include "pic.hpp"
-#include "serial.hpp"
 #include "utils.hpp"
 
 namespace cosmos::isr {
@@ -257,7 +257,7 @@ namespace cosmos::isr {
 
         pic::update();
 
-        serial::print("[isr] Initialized\n");
+        INFO("Initialized PIC");
     }
 
     /// Register an IRQ handler (0..15)
