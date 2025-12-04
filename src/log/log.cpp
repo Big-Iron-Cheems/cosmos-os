@@ -76,13 +76,22 @@ namespace cosmos::log {
     }
 
     void print_num(const shell::Color color, uint32_t num) {
-        char ch[] = { '\0', '\0' };
+        static char buffer[16];
+        auto len = 0u;
 
         do {
-            ch[0] = static_cast<char>('0' + num % 10);
-            print(color, ch);
+            buffer[len++] = static_cast<char>('0' + num % 10);
             num /= 10;
         } while (num != 0);
+
+        for (auto i = 0u; i < len / 2; i++) {
+            const auto temp = buffer[i];
+            buffer[i] = buffer[len - i - 1];
+            buffer[len - i - 1] = temp;
+        }
+
+        buffer[len] = '\0';
+        print(color, buffer);
     }
 
     void enable_display(const bool delay) {
