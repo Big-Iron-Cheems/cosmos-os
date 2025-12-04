@@ -10,6 +10,7 @@ namespace cosmos::shell {
 
     void set_color(Color color);
 
+    void print(const char* str, uint64_t len);
     void print(const char* str);
     void printf(const char* fmt, va_list args);
 

@@ -180,6 +180,7 @@ namespace cosmos::shell {
 
     void print(const char ch) {
         const auto glyph = get_font_glyph(ch);
+        if (!glyph.valid()) return;
 
         const auto base_x = row * FONT_WIDTH;
         const auto base_y = column * FONT_HEIGHT;
@@ -245,28 +246,31 @@ namespace cosmos::shell {
         fg_color = color;
     }
 
-    void print(const char* str) {
-        char ch;
+    void print(const char* str, const uint64_t len) {
+        for (auto i = 0u; i < len; i++) {
+            const auto ch = str[i];
 
-        while ((ch = *str) != '\0') {
             if (ch == '\n') {
                 new_line();
-            } else {
+            } else if (ch != '\0') {
                 print(ch);
 
                 row++;
                 if (row >= columns) new_line();
             }
-
-            str++;
         }
+    }
+
+    void print(const char* str) {
+        const auto len = utils::strlen(str);
+        print(str, len);
     }
 
     // ReSharper disable once CppParameterMayBeConst
     void printf(const char* fmt, va_list args) {
         static char buffer[256];
-        npf_vsnprintf(buffer, 256, fmt, args);
-        print(buffer);
+        const auto length = npf_vsnprintf(buffer, 256, fmt, args);
+        print(buffer, length);
     }
 
     bool get_char_from_event(const devices::keyboard::Event event, char& ch) {
@@ -365,14 +369,13 @@ namespace cosmos::shell {
                         continue;
                     }
 
-                    char ch[2];
-                    if (get_char_from_event(event, ch[0]) && size < length - 1) {
-                        buffer[size++] = ch[0];
+                    char ch;
+                    if (get_char_from_event(event, ch) && size < length - 1) {
+                        buffer[size++] = ch;
 
                         if (cursor_visible) fill_cell(0xFF000000);
 
-                        ch[1] = '\0';
-                        print(ch);
+                        print(&ch, 1);
                     }
                 }
 
@@ -385,7 +388,7 @@ namespace cosmos::shell {
 
         if (cursor_visible) fill_cell(0xFF000000);
 
-        print("\n");
+        print("\n", 1);
         buffer[size] = '\0';
     }
 } // namespace cosmos::shell

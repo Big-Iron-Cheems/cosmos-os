@@ -97,7 +97,7 @@ namespace cosmos::shell {
         str[length] = '\0';
         vfs::close_file(file);
 
-        print(str);
+        print(str, length);
         print("\n");
 
         memory::heap::free(str);
@@ -119,7 +119,7 @@ namespace cosmos::shell {
         stl::StringView child;
 
         while (!(child = vfs::read_dir(dir)).empty()) {
-            print(child.data());
+            print(child.data(), child.size());
             print("\n");
         }
 
