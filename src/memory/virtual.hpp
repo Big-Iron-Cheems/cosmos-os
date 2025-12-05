@@ -33,4 +33,10 @@ namespace cosmos::memory::virt {
     bool switched();
 
     uint64_t get_phys(uint64_t virt);
+
+    void dump(Space space, void (*range_fn)(uint64_t virt_start, uint64_t virt_end));
+
+    inline void dump(void (*range_fn)(uint64_t virt_start, uint64_t virt_end)) {
+        dump(get_current(), range_fn);
+    }
 } // namespace cosmos::memory::virt

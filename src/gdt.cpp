@@ -77,6 +77,6 @@ namespace cosmos::gdt {
         )" ::
                          : "memory");
 
-        INFO("Switch GDT");
+        INFO("Switched GDT");
     }
 } // namespace cosmos::gdt

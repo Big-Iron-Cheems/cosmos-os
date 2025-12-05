@@ -107,7 +107,7 @@ namespace cosmos::log::display {
 
         va_list args;
         va_start(args, fmt);
-        npf_snprintf(buffer, 256, fmt, args);
+        npf_vsnprintf(buffer, 256, fmt, args);
         va_end(args);
 
         print(color, buffer);

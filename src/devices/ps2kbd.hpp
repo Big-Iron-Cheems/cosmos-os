@@ -1,5 +1,5 @@
 #pragma once
 
 namespace cosmos::devices::ps2kbd {
-    void init();
+    bool init();
 } // namespace cosmos::devices::ps2kbd

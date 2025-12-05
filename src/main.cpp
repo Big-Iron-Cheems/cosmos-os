@@ -23,7 +23,7 @@ using namespace cosmos;
 
 void init() {
     devices::pit::start();
-    devices::ps2kbd::init();
+    if (!devices::ps2kbd::init()) utils::halt();
 
     const auto ramfs = vfs::mount("/");
     vfs::ramfs::create(ramfs);
@@ -61,6 +61,7 @@ void main() {
     asm volatile("mov %0, %%rsp" ::"ri"(rsp));
 
     const auto space = memory::virt::create();
+    if (space == 0) utils::panic(nullptr, "Failed to create virtual address space");
     memory::virt::switch_to(space);
     log::enable_paging();
 

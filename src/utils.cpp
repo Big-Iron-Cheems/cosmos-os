@@ -71,12 +71,17 @@ namespace cosmos::utils {
         va_end(args);
 
         log::enable_display(false);
-        log::display::printf(shell::WHITE, " --- KERNEL PANIC ---\n");
-        log::display::printf(shell::WHITE, "  %s (", buffer);
-        log::display::printf(shell::GRAY, "%d", info->interrupt);
-        log::display::printf(shell::WHITE, ") - ");
-        log::display::printf(shell::GRAY, "%d\n", info->error);
         log::display::printf(shell::WHITE, "\n");
+        log::display::printf(shell::WHITE, " --- KERNEL PANIC ---\n");
+        log::display::printf(shell::WHITE, "  %s", buffer);
+
+        if (info != nullptr) {
+            log::display::printf(shell::GRAY, " (%d", info->interrupt);
+            log::display::printf(shell::WHITE, ") - ");
+            log::display::printf(shell::GRAY, "%d", info->error);
+        }
+
+        log::display::printf(shell::WHITE, "\n\n");
 
         if (info != nullptr) {
             log::display::printf(shell::WHITE, " --- REGISTERS ---\n");

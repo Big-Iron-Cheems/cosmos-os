@@ -10,6 +10,8 @@ namespace cosmos::devices::ps2kbd {
     constexpr uint16_t STATUS = 0x64;
     constexpr uint16_t COMMAND = 0x64;
 
+    constexpr uint32_t TIMEOUT = 1024;
+
     struct Configuration {
         uint8_t raw;
 
@@ -35,54 +37,57 @@ namespace cosmos::devices::ps2kbd {
 #undef FIELD
     };
 
-    void wait_send() {
-        for (auto i = 0; i < 8; i++) {
+    bool wait_send() {
+        for (auto i = 0u; i < TIMEOUT; i++) {
             utils::wait();
-            if ((utils::byte_in(STATUS) & 0b10) == 0) return;
+            if ((utils::byte_in(STATUS) & 0b10) == 0) return true;
         }
 
-        utils::panic(nullptr, "[ps2kbd] Failed to send data");
+        return false;
     }
 
-    void send_controller_cmd(const uint8_t cmd) {
-        wait_send();
+    bool send_controller_cmd(const uint8_t cmd) {
+        if (!wait_send()) return false;
         utils::byte_out(COMMAND, cmd);
+        return true;
     }
 
-    void send_controller_cmd(const uint8_t cmd, const uint8_t data) {
-        wait_send();
+    bool send_controller_cmd(const uint8_t cmd, const uint8_t data) {
+        if (!wait_send()) return false;
         utils::byte_out(COMMAND, cmd);
 
-        wait_send();
+        if (!wait_send()) return false;
         utils::byte_out(DATA, data);
+
+        return true;
     }
 
-    uint8_t recv_data() {
-        for (auto i = 0; i < 8; i++) {
+    bool recv_data(uint8_t& data) {
+        for (auto i = 0u; i < TIMEOUT; i++) {
             utils::wait();
 
             if ((utils::byte_in(STATUS) & 0b1) == 1) {
-                return utils::byte_in(DATA);
+                data = utils::byte_in(DATA);
+                return true;
             }
         }
 
-        utils::panic(nullptr, "[ps2kbd] Failed to receive data");
+        return false;
     }
 
-    void send_device_cmd(const uint8_t cmd) {
-        wait_send();
+    bool send_device_cmd(const uint8_t cmd) {
+        if (!wait_send()) return false;
         utils::byte_out(DATA, cmd);
 
-        auto i = 0;
+        auto i = 0u;
 
         for (;;) {
-            const auto response = recv_data();
+            uint8_t response;
+            if (!recv_data(response)) return false;
             if (response == 0xFA) break;
 
             if (response == 0xFE) {
-                if (i >= 8) {
-                    utils::panic(nullptr, "[ps2kbd] Failed to receive response");
-                }
+                if (i >= TIMEOUT) return false;
 
                 wait_send();
                 utils::byte_out(DATA, cmd);
@@ -93,6 +98,8 @@ namespace cosmos::devices::ps2kbd {
 
             WARN("Invalid response to a device command, 0x%X", response);
         }
+
+        return true;
     }
 
     constexpr uint8_t SCAN_RELEASE = 0x80;
@@ -155,13 +162,24 @@ namespace cosmos::devices::ps2kbd {
     void init_normal_key_map();
     void init_extended_key_map();
 
-    void init() {
+    bool init() {
+#define ERROR_CMD(cmd)                                                                                                                     \
+    {                                                                                                                                      \
+        ERROR("Failed to send controller command 0x%02X, disabling", cmd);                                                                 \
+        return false;                                                                                                                      \
+    }
+#define ERROR_MSG(msg)                                                                                                                     \
+    {                                                                                                                                      \
+        ERROR(msg);                                                                                                                        \
+        return false;                                                                                                                      \
+    }
+
         init_normal_key_map();
         init_extended_key_map();
 
         // Disable both PS2 ports
-        send_controller_cmd(0xAD);
-        send_controller_cmd(0xA7);
+        if (!send_controller_cmd(0xAD)) ERROR_CMD(0xAD);
+        if (!send_controller_cmd(0xA7)) ERROR_CMD(0xA7);
 
         // Flush output buffer
         while (utils::byte_in(STATUS) & 0b1) {
@@ -169,16 +187,19 @@ namespace cosmos::devices::ps2kbd {
         }
 
         // Set initial configuration byte
-        send_controller_cmd(0x20);
+        if (!send_controller_cmd(0x20)) ERROR_CMD(0x20);
 
-        auto config = Configuration(recv_data());
+        uint8_t config_byte;
+        if (!recv_data(config_byte)) ERROR_MSG("Failed to read configuration byte");
+
+        auto config = Configuration();
         config.first_interrupt_enable(false);
         config.second_interrupt_enable(false);
         config.first_translation_enable(true);
         config.first_clock_disable(false);
         config.second_clock_disable(true);
 
-        send_controller_cmd(0x60, config.raw);
+        if (!send_controller_cmd(0x60, config.raw)) ERROR_CMD(0x60);
 
         // Flush output buffer
         while (utils::byte_in(STATUS) & 0b1) {
@@ -186,29 +207,35 @@ namespace cosmos::devices::ps2kbd {
         }
 
         // Perform self test
-        send_controller_cmd(0xAA);
-        const auto self_test_response = recv_data();
+        if (!send_controller_cmd(0xAA)) ERROR_CMD(0xAA);
+
+        uint8_t self_test_response;
+        if (!recv_data(self_test_response)) ERROR_MSG("Failed to read self test response");
 
         if (self_test_response != 0x55) {
             utils::panic(nullptr, "[ps2kbd] Controller self test failed, 0x%X\n", self_test_response);
         }
 
-        send_controller_cmd(0x60, config.raw);
+        if (!send_controller_cmd(0x60, config.raw)) ERROR_CMD(0x60);
 
         // Test first port
-        send_controller_cmd(0xAB);
-        const auto test_response = recv_data();
+        if (!send_controller_cmd(0xAB)) ERROR_CMD(0xAB);
+
+        uint8_t test_response;
+        if (!recv_data(test_response)) ERROR_MSG("Failed to read first port test response");
 
         if (test_response != 0x00) {
             utils::panic(nullptr, "[ps2kbd] First port test failed, 0x%X\n", test_response);
         }
 
         // Enable first port
-        send_controller_cmd(0xAE);
+        if (!send_controller_cmd(0xAE)) ERROR_CMD(0xAE);
 
         // Reset keyboard
-        send_device_cmd(0xFF);
-        const auto reset_response = recv_data();
+        if (!send_device_cmd(0xFF)) ERROR_CMD(0xFF);
+
+        uint8_t reset_response;
+        if (!recv_data(reset_response)) ERROR_MSG("Failed to read first port reset response");
 
         if (reset_response != 0xAA) {
             utils::panic(nullptr, "[ps2kbd] Failed to reset keyboard, 0x%X\n", reset_response);
@@ -216,9 +243,14 @@ namespace cosmos::devices::ps2kbd {
 
         // Enable interrupts for first port
         config.first_interrupt_enable(true);
-        send_controller_cmd(0x60, config.raw);
+        if (!send_controller_cmd(0x60, config.raw)) ERROR_CMD(0x60);
 
         cosmos::isr::set(1, on_data);
+
+        return true;
+
+#undef ERROR_MSG
+#undef ERROR_CMD
     }
 
     void init_normal_key_map() {

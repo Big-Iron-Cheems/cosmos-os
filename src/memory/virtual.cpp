@@ -37,6 +37,14 @@ namespace cosmos::memory::virt {
         };
     }
 
+    uint64_t make_canonical(const uint64_t addr) {
+        if (((addr >> (VIRT_ADDR_LAST_BIT_OFFSET - 1)) & 1) == 1) {
+            return addr | (VIRT_ADDR_UNUSED_MASK << VIRT_ADDR_LAST_BIT_OFFSET);
+        }
+
+        return addr;
+    }
+
     uint64_t pack(const Address addr) {
         uint64_t virt = (addr.pml4 & VIRT_ADDR_PML4_MASK) << VIRT_ADDR_PML4_OFFSET;
         virt |= (addr.pdp & VIRT_ADDR_PDP_MASK) << VIRT_ADDR_PDP_OFFSET;
@@ -44,11 +52,7 @@ namespace cosmos::memory::virt {
         virt |= (addr.pt & VIRT_ADDR_PT_MASK) << VIRT_ADDR_PT_OFFSET;
         virt |= (addr.offset & VIRT_ADDR_OFFSET_MASK) << VIRT_ADDR_OFFSET_OFFSET;
 
-        if (((virt >> VIRT_ADDR_LAST_BIT_OFFSET) & 1) == 1) {
-            virt |= VIRT_ADDR_UNUSED_MASK << VIRT_ADDR_LAST_BIT_OFFSET;
-        }
-
-        return virt;
+        return make_canonical(virt);
     }
 
     // Table entry
@@ -132,7 +136,7 @@ namespace cosmos::memory::virt {
             }
         }
 
-        ERROR("Failed tORo find framebuffer memory range");
+        ERROR("Failed to find framebuffer memory range");
         return false;
     }
 
@@ -160,7 +164,11 @@ namespace cosmos::memory::virt {
         }
 
         const auto space = phys::alloc_pages(1);
-        if (space == 0) return 0;
+
+        if (space == 0) {
+            ERROR("Failed to allocate physical page for PML4 table");
+            return 0;
+        }
 
         const auto pml4 = get_ptr_from_phys<uint64_t>(space);
         utils::memset(pml4, 0, 4096);
@@ -247,7 +255,11 @@ namespace cosmos::memory::virt {
     uint64_t* get_child_table(uint64_t& entry) {
         if (!entry_is_present(entry)) {
             const auto child_table_phys = phys::alloc_pages(1);
-            if (child_table_phys == 0) return nullptr;
+
+            if (child_table_phys == 0) {
+                ERROR("Failed to allocate physical page for child table");
+                return nullptr;
+            }
 
             const auto child_table = get_ptr_from_phys<uint64_t>(child_table_phys);
             utils::memset(child_table, 0, 4096);
@@ -350,5 +362,76 @@ namespace cosmos::memory::virt {
         const auto page_phys = pt_table[pt] & ADDRESS_MASK;
 
         return page_phys + offset;
+    }
+
+    void dump(const Space space, void (*range_fn)(uint64_t virt_start, uint64_t virt_end)) {
+        uint64_t current_start = 0;
+        uint64_t current_end = 0;
+        bool has_active_range = false;
+
+        auto add_mapping = [&](const uint64_t virt_addr, const uint64_t size) {
+            if (has_active_range && current_end == virt_addr) {
+                current_end += size;
+            } else {
+                if (has_active_range) {
+                    range_fn(current_start, current_end);
+                }
+
+                current_start = virt_addr;
+                current_end = virt_addr + size;
+                has_active_range = true;
+            }
+        };
+
+        const auto pml4_table = get_ptr_from_phys<uint64_t>(space);
+
+        for (auto pml4_index = 0; pml4_index < 512; pml4_index++) {
+            const auto pml4_entry = pml4_table[pml4_index];
+            if (!entry_is_present(pml4_entry)) continue;
+
+            const auto pml4_virt = static_cast<uint64_t>(pml4_index) << VIRT_ADDR_PML4_OFFSET;
+
+            const auto pdp_table = get_ptr_from_phys<uint64_t>(pml4_entry & ADDRESS_MASK);
+
+            for (auto pdp_index = 0; pdp_index < 512; pdp_index++) {
+                const auto pdp_entry = pdp_table[pdp_index];
+                if (!entry_is_present(pdp_entry)) continue;
+
+                const auto pdp_virt = make_canonical(pml4_virt | (static_cast<uint64_t>(pdp_index) << VIRT_ADDR_PDP_OFFSET));
+
+                if (entry_is_direct(pdp_entry)) {
+                    add_mapping(pdp_virt, 1ULL << VIRT_ADDR_PDP_OFFSET); // 1 gB size
+                    continue;
+                }
+
+                const auto pd_table = get_ptr_from_phys<uint64_t>(pdp_entry & ADDRESS_MASK);
+
+                for (auto pd_index = 0; pd_index < 512; pd_index++) {
+                    const auto pd_entry = pd_table[pd_index];
+                    if (!entry_is_present(pd_entry)) continue;
+
+                    const auto pd_virt = pdp_virt | (static_cast<uint64_t>(pd_index) << VIRT_ADDR_PD_OFFSET);
+
+                    if (entry_is_direct(pd_entry)) {
+                        add_mapping(pd_virt, 1ULL << VIRT_ADDR_PD_OFFSET); // 2 mB size
+                        continue;
+                    }
+
+                    const auto pt_table = get_ptr_from_phys<uint64_t>(pd_entry & ADDRESS_MASK);
+
+                    for (auto pt_index = 0; pt_index < 512; pt_index++) {
+                        const auto pt_entry = pt_table[pt_index];
+                        if (!entry_is_present(pt_entry)) continue;
+
+                        const auto pt_virt = pd_virt | (static_cast<uint64_t>(pt_index) << VIRT_ADDR_PT_OFFSET);
+                        add_mapping(pt_virt, 4096); // 4 kB size
+                    }
+                }
+            }
+        }
+
+        if (has_active_range) {
+            range_fn(current_start, current_end);
+        }
     }
 } // namespace cosmos::memory::virt

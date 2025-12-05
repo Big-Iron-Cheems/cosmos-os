@@ -11,29 +11,35 @@ namespace cosmos::memory::phys {
     static uint32_t total_pages;
     static uint32_t used_pages;
 
-    void mark_page(const uint32_t index, const bool used) {
+    bool mark_page(const uint32_t index, const bool used) {
         uint64_t& entry = entries[index / 64u];
         const uint64_t mask = 1ull << (index % 64u);
+
+        const auto prev_entry = entry;
 
         if (used) {
             entry |= mask;
         } else {
             entry = entry & ~mask;
         }
+
+        return prev_entry != entry;
     }
 
     void mark_pages(const uint32_t first, uint32_t count, const bool used) {
         if (first >= total_pages) return;
         count = utils::min(count, total_pages - first);
 
+        auto changed = 0u;
+
         for (auto i = 0u; i < count; i++) {
-            mark_page(first + i, used);
+            if (mark_page(first + i, used)) changed++;
         }
 
         if (used) {
-            used_pages += count;
+            used_pages += changed;
         } else {
-            used_pages -= count;
+            used_pages -= changed;
         }
     }
 
@@ -86,6 +92,9 @@ namespace cosmos::memory::phys {
         // Mark entries bitmask as used
         mark_pages(entries_page_index, entries_page_count, true);
 
+        // Mark first page as used
+        mark_pages(0, 1, true);
+
         INFO("Initialized PMM with %d pages, %d mB", total_pages, static_cast<uint64_t>(total_pages) * 4096ull / 1024ull / 1024ull);
     }
 
@@ -117,6 +126,7 @@ namespace cosmos::memory::phys {
             }
         }
 
+        ERROR("Failed to allocate %d pages", count);
         return 0;
     }
 
