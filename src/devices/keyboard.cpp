@@ -103,7 +103,7 @@ namespace cosmos::devices::keyboard {
     };
 
     void init(vfs::Node* node) {
-        vfs::devfs::register_device(node, "keyboard", &file_ops);
+        vfs::devfs::register_device(node, "keyboard", &file_ops, nullptr);
     }
 
     void add_event(const Event event) {

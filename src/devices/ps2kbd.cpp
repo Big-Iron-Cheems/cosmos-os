@@ -4,6 +4,7 @@
 #include "keyboard.hpp"
 #include "log/log.hpp"
 #include "utils.hpp"
+#include "stl/bit_field.hpp"
 
 namespace cosmos::devices::ps2kbd {
     constexpr uint16_t DATA = 0x60;
@@ -15,26 +16,12 @@ namespace cosmos::devices::ps2kbd {
     struct Configuration {
         uint8_t raw;
 
-#define FIELD(name, index)                                                                                                                 \
-    [[nodiscard]]                                                                                                                          \
-    bool name() const {                                                                                                                    \
-        return raw & (1 << index);                                                                                                         \
-    }                                                                                                                                      \
-    void name(const bool value) {                                                                                                          \
-        if (value)                                                                                                                         \
-            raw |= 1 << index;                                                                                                             \
-        else                                                                                                                               \
-            raw &= ~(1 << index);                                                                                                          \
-    }
-
-        FIELD(first_interrupt_enable, 0)
-        FIELD(second_interrupt_enable, 1)
-        FIELD(system, 2)
-        FIELD(first_clock_disable, 4)
-        FIELD(second_clock_disable, 5)
-        FIELD(first_translation_enable, 6)
-
-#undef FIELD
+        FIELD_BIT(first_interrupt_enable, raw, 0)
+        FIELD_BIT(second_interrupt_enable, raw, 1)
+        FIELD_BIT(system, raw, 2)
+        FIELD_BIT(first_clock_disable, raw, 4)
+        FIELD_BIT(second_clock_disable, raw, 5)
+        FIELD_BIT(first_translation_enable, raw, 6)
     };
 
     bool wait_send() {

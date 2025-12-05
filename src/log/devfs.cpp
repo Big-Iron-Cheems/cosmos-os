@@ -32,6 +32,6 @@ namespace cosmos::log {
     };
 
     void init_devfs(vfs::Node* node) {
-        vfs::devfs::register_device(node, "log", &log_ops);
+        vfs::devfs::register_device(node, "log", &log_ops, nullptr);
     }
 } // namespace cosmos::log

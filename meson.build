@@ -28,6 +28,7 @@ executable(
         'src/devices/framebuffer.cpp',
         'src/devices/ps2kbd.cpp',
         'src/devices/keyboard.cpp',
+        'src/devices/atapio.cpp',
         'src/vfs/path.cpp',
         'src/vfs/vfs.cpp',
         'src/vfs/ramfs.cpp',

@@ -58,6 +58,6 @@ namespace cosmos::devices::framebuffer {
     };
 
     void init(vfs::Node* node) {
-        vfs::devfs::register_device(node, "framebuffer", &fb_ops);
+        vfs::devfs::register_device(node, "framebuffer", &fb_ops, nullptr);
     }
 } // namespace cosmos::devices::framebuffer

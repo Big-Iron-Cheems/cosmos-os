@@ -1,3 +1,4 @@
+#include "devices/atapio.hpp"
 #include "devices/framebuffer.hpp"
 #include "devices/keyboard.hpp"
 #include "devices/pit.hpp"
@@ -34,6 +35,7 @@ void init() {
     log::init_devfs(devfs);
     devices::framebuffer::init(devfs);
     devices::keyboard::init(devfs);
+    devices::atapio::init(devfs);
 
     INFO("Initialized");
 

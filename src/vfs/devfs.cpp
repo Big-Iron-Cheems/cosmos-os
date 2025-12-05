@@ -44,7 +44,7 @@ namespace cosmos::vfs::devfs {
         node->populated = true;
     }
 
-    void register_device(Node* node, stl::StringView name, const FileOps* ops) {
+    void register_device(Node* node, stl::StringView name, const FileOps* ops, void* handle) {
         if (name.contains("/")) return;
         name = name.trim();
 
@@ -56,6 +56,7 @@ namespace cosmos::vfs::devfs {
         device->type = NodeType::File;
         device->name = stl::StringView(reinterpret_cast<char*>(device) + sizeof(Node) + sizeof(FileOps*), name.size());
         device->fs_ops = &fs_ops;
+        device->fs_handle = handle;
 
         utils::memcpy(const_cast<char*>(device->name.data()), name.data(), name.size());
         const_cast<char*>(device->name.data())[name.size()] = '\0';
